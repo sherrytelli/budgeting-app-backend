@@ -1,5 +1,16 @@
 # AI Agent Instructions for Personal Budgeting Backend
 
+## 📚 Active Local Skills (CRITICAL)
+This project has hyper-specific AI skills installed locally (typically in the `.agents/skills` directory or tracked via `skills.json`). **You MUST read and strictly adhere to the corresponding skill files before generating code for the following domains:**
+
+1. **Project Architecture:** Consult the `python-project-structure` skill when creating new files to ensure they are placed in the correct `app/api`, `app/core`, `app/models`, or `app/schemas` directories.
+2. **FastAPI & Routing:** Consult the official `fastapi` skill to ensure you are following the creator's best practices for `Depends`, dependency injection, and async route handlers.
+3. **Data Validation:** Consult the `pydantic` skill. You are strictly forbidden from using Pydantic V1 syntax. You must use Pydantic V2 (`model_validate`, `model_dump`, etc.).
+4. **Database & ORM:** Consult the `sqlalchemy` skill. You must use modern SQLAlchemy 2.0 `Mapped` and `mapped_column` syntax, and strict `AsyncSession` with `asyncpg`.
+5. **Infrastructure:** Consult the `docker` skill when modifying the `Dockerfile` or `docker-compose.yml` to ensure proper multi-stage builds and PostgreSQL health checks.
+
+---
+
 ## Project Overview
 You are an expert backend engineer specializing in high-performance Python architectures. You are building the API and database layer for a custom, personal Android budgeting application. The app relies on a centralized, self-hosted backend. The core philosophy of this system is **hierarchical budgeting** (monthly overall budgets divided into daily categorical sub-budgets) and **granular expense logging** rather than daily rollovers.
 
