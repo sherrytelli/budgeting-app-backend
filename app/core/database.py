@@ -26,11 +26,16 @@ async_session_maker = async_sessionmaker(
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    """FastAPI dependency that yields an async database session."""
+    """FastAPI dependency that yields an async database session.
+
+    Only commits if the session has pending changes (new, modified, or deleted objects).
+    Read-only requests (GET) skip the commit to avoid unnecessary database round-trips.
+    """
     async with async_session_maker() as session:
         try:
             yield session
-            await session.commit()
+            if session.dirty or session.new or session.deleted:
+                await session.commit()
         except Exception:
             await session.rollback()
             raise
