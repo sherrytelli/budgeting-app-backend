@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "skills": {
+    "docker": {
+      "source": "oakoss/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/docker/SKILL.md",
+      "computedHash": "bdd4813e3461e72aa86666158568d718e47f8daaf7f9250ad616528117131bbf"
+    },
+    "fastapi": {
+      "source": "fastapi/fastapi",
+      "sourceType": "github",
+      "skillPath": "fastapi/.agents/skills/fastapi/SKILL.md",
+      "computedHash": "61ced71839a7ac17d03474a60df84c80c04f09bf3070f9cf2e54d0a2f831a326"
+    },
+    "pydantic": {
+      "source": "pydantic/skills",
+      "sourceType": "github",
+      "skillPath": "skills/pydantic/SKILL.md",
+      "computedHash": "65f68dbab0f7e60bfd26998350d674a104848daf23311067e0829758a7cf6f91"
+    },
+    "python-project-structure": {
+      "source": "wshobson/agents",
+      "sourceType": "github",
+      "skillPath": "plugins/python-development/skills/python-project-structure/SKILL.md",
+      "computedHash": "2f4f560964af8ecad4d54666c044baa54671d0abd1136c848b539befe24db170"
+    },
+    "sqlalchemy": {
+      "source": "claude-dev-suite/claude-dev-suite",
+      "sourceType": "github",
+      "skillPath": "skills/orm-odm/sqlalchemy/SKILL.md",
+      "computedHash": "4760a743ac9d6ef785fb739f6d112a9ff8afedf5cd6a084567637bf8d40dc31e"
+    }
+  }
+}
