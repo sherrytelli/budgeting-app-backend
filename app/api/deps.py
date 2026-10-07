@@ -33,7 +33,7 @@ __all__ = [
 
 
 async def get_current_active_user(
-    current_user: Annotated[User, CurrentUserDep],
+    current_user: Annotated[User, Depends(get_current_user)],
 ) -> User:
     """Return the current user only if their account is active.
 
