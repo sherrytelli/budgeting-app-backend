@@ -1,7 +1,9 @@
 """Security utilities: password hashing with Argon2 and JWT token management."""
 
+from __future__ import annotations
+
 from datetime import datetime, timedelta, timezone
-from typing import Annotated, Any
+from typing import TYPE_CHECKING, Annotated, Any
 
 import jwt
 from fastapi import Depends, HTTPException, status
@@ -13,7 +15,9 @@ from uuid import UUID
 
 from app.core.config import get_settings
 from app.core.database import get_db
-from app.models.user import User
+
+if TYPE_CHECKING:
+    from app.models.user import User
 
 settings = get_settings()
 
@@ -156,4 +160,4 @@ async def get_current_user(
 
 
 # Type alias for the current user dependency
-CurrentUserDep = Annotated[User, Depends(get_current_user)]
+CurrentUserDep = Annotated["User", Depends(get_current_user)]
