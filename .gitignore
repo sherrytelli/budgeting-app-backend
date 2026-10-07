@@ -6,3 +6,6 @@
 
 # agent plans
 /.agents/plans/
+
+# env
+/.env
