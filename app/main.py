@@ -6,7 +6,6 @@ This module wires together the FastAPI application with:
 - Exception handlers (HTTPException, ValidationError, generic 500)
 - API v1 router inclusion
 - Health check endpoint
-- Database table initialization on startup
 """
 
 import logging
@@ -23,7 +22,7 @@ from pydantic import ValidationError
 from app import __version__
 from app.api.v1.api import api_router
 from app.core.config import get_settings
-from app.core.database import init_db
+
 from app.core.logging import configure_logging, get_logger
 
 settings = get_settings()
@@ -33,24 +32,18 @@ settings = get_settings()
 async def lifespan(app: FastAPI):
     """Application lifespan handler.
 
-    Initializes database tables on startup and performs cleanup on shutdown.
+    Configures structured logging on startup and logs shutdown.
+    Database tables must be created via Alembic before the app starts.
     """
-    # Startup: configure logging and create tables
+    # Startup: configure structured logging
     configure_logging(level=logging.INFO)
     logger = get_logger(__name__)
-    logger.info("database_initializing")
-
-    try:
-        await init_db()
-        logger.info("database_ready")
-    except Exception as e:
-        logger.error("database_initialization_failed", error=str(e))
-        raise
+    logger.info("application_startup")
 
     yield
 
-    # Shutdown: no cleanup needed for async engine (handled by uvicorn)
-    logger.info("shutting_down")
+    # Shutdown
+    logger.info("application_shutdown")
 
 
 # --- FastAPI Application ---
