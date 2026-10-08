@@ -8,6 +8,7 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
+from dotenv import load_dotenv
 
 # Ensure the project root is on the path so we can import app modules
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
@@ -18,6 +19,8 @@ from app.models.category import DailyCategory  # noqa: E402
 from app.models.expense import Expense  # noqa: E402
 from app.models.user import User  # noqa: E402
 
+load_dotenv()
+
 # Import the Base's metadata for autogenerate
 target_metadata = Base.metadata
 
@@ -26,7 +29,7 @@ config = context.config
 
 # Override the sqlalchemy.url from the DATABASE_URL environment variable
 # This allows the same alembic.ini to work across environments
-database_url = os.environ.get("DATABASE_URL")
+database_url = os.environ.get("ALEMBIC_DATABASE_URL")
 if database_url:
     config.set_main_option("sqlalchemy.url", database_url)
 
