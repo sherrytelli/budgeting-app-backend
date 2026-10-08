@@ -110,22 +110,25 @@ async def get_current_budget(
     db: AsyncSession,
     user_id: UUID,
 ) -> MonthlyBudget | None:
-    """Find the budget for the current month and year.
+    """Find the budget for the current month and year, with categories loaded.
 
     Args:
         db: Async database session.
         user_id: The owning user's UUID.
 
     Returns:
-        The current MonthlyBudget instance, or None if none exists.
+        The current MonthlyBudget instance with daily_categories eagerly loaded,
+        or None if none exists.
     """
     today = date.today()
     result = await db.execute(
-        select(MonthlyBudget).where(
+        select(MonthlyBudget)
+        .where(
             MonthlyBudget.user_id == user_id,
             MonthlyBudget.month == today.month,
             MonthlyBudget.year == today.year,
-        ),
+        )
+        .options(selectinload(MonthlyBudget.daily_categories)),
     )
     return result.scalar_one_or_none()
 
