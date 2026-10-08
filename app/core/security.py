@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-from typing import TYPE_CHECKING, Annotated, Any
+from typing import Annotated, Any
 
 import jwt
 from fastapi import Depends, HTTPException, status
@@ -15,9 +15,7 @@ from uuid import UUID
 
 from app.core.config import get_settings
 from app.core.database import get_db
-
-if TYPE_CHECKING:
-    from app.models.user import User
+from app.models.user import User
 
 settings = get_settings()
 

@@ -10,7 +10,7 @@ from __future__ import annotations
 from calendar import monthrange
 from datetime import date, datetime, timezone
 from decimal import Decimal
-from typing import TYPE_CHECKING
+
 from uuid import UUID
 
 from fastapi import HTTPException, status
@@ -21,9 +21,7 @@ from sqlalchemy.orm import selectinload
 from app.models.budget import MonthlyBudget
 from app.models.category import DailyCategory
 from app.models.expense import Expense
-
-if TYPE_CHECKING:
-    from app.schemas.analytics import CategoryAnalytics, MonthlyStanding
+from app.schemas.analytics import CategoryAnalytics, MonthlyStanding
 
 __all__ = [
     "get_category_reminders",
