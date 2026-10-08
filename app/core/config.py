@@ -13,6 +13,9 @@ class CorsSettings(BaseModel):
 class Settings(BaseSettings):
     """Application settings loaded from environment variables and .env file."""
 
+    # Environment
+    ENVIRONMENT: str = "development"
+
     # Database
     DATABASE_URL: str
 
