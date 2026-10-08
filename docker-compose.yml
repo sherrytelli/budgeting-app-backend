@@ -7,8 +7,8 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-budget_user}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-budget_secure_password}
       POSTGRES_DB: ${POSTGRES_DB:-budget_db}
-    ports:
-      - "5432:5432"
+    # ports:
+    #   - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql
     healthcheck:
