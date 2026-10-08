@@ -4,11 +4,11 @@ Defines request/response schemas for creating, reading, updating, and deleting
 monthly budgets along with their nested category breakdowns.
 """
 
-from datetime import datetime
+from datetime import datetime, time
 from decimal import Decimal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class MonthlyBudgetBase(BaseModel):
@@ -59,11 +59,22 @@ class CategoryRead(BaseModel):
     created_at: datetime = Field(description="Creation timestamp (UTC)")
     updated_at: datetime = Field(description="Last update timestamp (UTC)")
 
+    @field_validator("reminder_time", mode="before")
+    @classmethod
+    def convert_reminder_time(cls, v):
+        """Convert datetime.time objects to HH:MM:SS strings."""
+        if isinstance(v, time):
+            return v.strftime("%H:%M:%S")
+        return v
+
 
 class MonthlyBudgetWithCategories(MonthlyBudgetRead):
     """Monthly budget read schema with nested category breakdowns."""
 
+    model_config = ConfigDict(populate_by_name=True)
+
     categories: list[CategoryRead] = Field(
         default_factory=list,
         description="List of daily categories within this budget",
+        alias="daily_categories",
     )
