@@ -2,7 +2,7 @@
 
 This module wires together the FastAPI application with:
 - CORS middleware
-- Structured logging middleware (request ID, timing, JSON output)
+- Structured logging middleware (request ID, timing, colored console output in dev)
 - Exception handlers (HTTPException, ValidationError, generic 500)
 - API v1 router inclusion
 - Health check endpoint
@@ -36,7 +36,12 @@ async def lifespan(app: FastAPI):
     Database tables must be created via Alembic before the app starts.
     """
     # Startup: configure structured logging
-    configure_logging(level=logging.INFO)
+    configure_logging(level=logging.INFO, environment=settings.ENVIRONMENT)
+
+    # Disable uvicorn's built-in access log to avoid duplication with our middleware
+    uvicorn_logger = logging.getLogger("uvicorn.access")
+    uvicorn_logger.disabled = True
+
     logger = get_logger(__name__)
     logger.info("application_startup")
 
