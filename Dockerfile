@@ -11,8 +11,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy dependency files first for layer caching
-COPY pyproject.toml uv.lock ./
+# Copy dependency files and readme first for layer caching
+COPY pyproject.toml uv.lock README.md ./
 
 # Install dependencies into a virtual environment
 RUN python -m venv /opt/venv
@@ -31,6 +31,9 @@ RUN groupadd -g 1001 appgroup && \
 
 # Copy the virtual environment from builder
 COPY --from=builder --chown=appuser:appgroup /opt/venv /opt/venv
+
+# Copy application source from build context (editable install links to this)
+COPY --chown=appuser:appgroup app /app/app
 
 ENV PATH="/opt/venv/bin:$PATH"
 

@@ -18,20 +18,21 @@ services:
       retries: 5
       start_period: 10s
 
-  # app:
-  #   build:
-  #     context: .
-  #     dockerfile: Dockerfile
-  #     target: production
-  #   container_name: budget_api
-  #   restart: unless-stopped
-  #   depends_on:
-  #     db:
-  #       condition: service_healthy
-  #   env_file:
-  #     - .env
-  #   ports:
-  #     - "8000:8000"
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    image: budgeting-app-fastapi-backend
+    container_name: budget_api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
 
 volumes:
   postgres_data:

@@ -37,10 +37,6 @@ dist/
 build/
 *.whl
 
-# Documentation
-*.md
-README.md
-
 # Agent plans (contains secrets and plans)
 .agents/plans/
 
