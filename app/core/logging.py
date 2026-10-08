@@ -1,4 +1,4 @@
-"""Structured logging configuration using structlog with JSON output."""
+"""Structured logging configuration using structlog with environment-aware rendering."""
 
 import logging
 import uuid
@@ -17,14 +17,26 @@ def add_request_id(
     return event_dict
 
 
-def configure_logging(level: int = logging.INFO) -> None:
-    """Configure structlog with JSON renderer for structured logging.
+def configure_logging(level: int = logging.INFO, environment: str = "development") -> None:
+    """Configure structlog with environment-aware renderer for structured logging.
+
+    - Development: Uses ConsoleRenderer with colors for human-readable terminal output.
+    - Production: Uses JSONRenderer for structured, parseable log aggregation.
 
     This should be called once at application startup.
 
     Args:
         level: The logging level to use (default: INFO).
+        environment: The application environment ("development" or "production").
     """
+    is_production = environment == "production"
+
+    # Choose renderer based on environment
+    if is_production:
+        renderer = structlog.processors.JSONRenderer()
+    else:
+        renderer = structlog.dev.ConsoleRenderer(colors=True)
+
     structlog.configure(
         processors=[
             add_request_id,
@@ -33,7 +45,7 @@ def configure_logging(level: int = logging.INFO) -> None:
             structlog.processors.TimeStamper(fmt="iso"),
             structlog.processors.StackInfoRenderer(),
             structlog.dev.set_exc_info,
-            structlog.processors.JSONRenderer(),
+            renderer,
         ],
         wrapper_class=structlog.make_filtering_bound_logger(level),
         context_class=dict,
