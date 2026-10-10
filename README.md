@@ -36,6 +36,7 @@ A production-ready FastAPI backend for a personal budgeting Android app with hie
    ```bash
    docker compose up -d db
    ```
+   Uncomment **ports** of **db** section in the **docker-compose.yml** file for local development with the postgres server
 
 4. **Run migrations:**
    ```bash
@@ -71,7 +72,7 @@ Once running, visit:
 │   ├── schemas/            # Pydantic V2 request/response schemas
 │   ├── api/                # API routers and endpoints
 │   └── services/           # Business logic services
-├── alembic/                # Database migrations
+├── migrations/             # Database migrations
 ├── docker-compose.yml      # Multi-service orchestration
 ├── Dockerfile              # Multi-stage Docker build
 ├── pyproject.toml          # Project metadata & dependencies
