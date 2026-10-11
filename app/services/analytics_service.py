@@ -8,9 +8,8 @@ including today's spending and month-to-date totals.
 from __future__ import annotations
 
 from calendar import monthrange
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from decimal import Decimal
-
 from uuid import UUID
 
 from fastapi import HTTPException, status
@@ -37,10 +36,11 @@ async def get_monthly_standing(
     user_id: UUID,
     month: int | None = None,
     year: int | None = None,
+    budget_name: str | None = None,
 ) -> MonthlyStanding:
-    """Calculate the user's overall monthly budget standing.
+    """Calculate the user's overall monthly budget standing for a named budget.
 
-    Queries total spending across all categories for the given month,
+    Queries total spending across all categories for the given named budget,
     computes remaining balance, budget status, and the safe daily allowance
     for the remainder of the month.
 
@@ -52,33 +52,45 @@ async def get_monthly_standing(
         user_id: The user's UUID.
         month: Target month (1-12). Defaults to current month.
         year: Target year. Defaults to current year.
+        budget_name: Required name of the specific budget to query.
 
     Returns:
         A MonthlyStanding schema with overall and per-category analytics.
 
     Raises:
-        HTTPException: If no budget exists for the given month/year (404).
+        HTTPException: If budget_name is not provided (404).
+        HTTPException: If no budget exists for the given criteria (404).
     """
     today = date.today()
     target_month = month or today.month
     target_year = year or today.year
 
-    # Fetch the budget for the target month/year
-    result = await db.execute(
+    if budget_name is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="budget_name parameter is required when querying by month/year",
+        )
+
+    # Fetch the named budget for the target month/year
+    query = (
         select(MonthlyBudget)
         .where(
             MonthlyBudget.user_id == user_id,
             MonthlyBudget.month == target_month,
             MonthlyBudget.year == target_year,
         )
-        .options(selectinload(MonthlyBudget.daily_categories)),
+        .options(selectinload(MonthlyBudget.daily_categories))
     )
+    if budget_name is not None:
+        query = query.where(MonthlyBudget.name == budget_name)
+
+    result = await db.execute(query)
     budget = result.scalar_one_or_none()
 
     if budget is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"No budget found for {target_month}/{target_year}",
+            detail=f"No budget '{budget_name}' found for {target_month}/{target_year}",
         )
 
     # Calculate total spent this month across all categories
@@ -91,7 +103,7 @@ async def get_monthly_standing(
         .where(
             MonthlyBudget.id == budget.id,
             func.date_trunc("month", Expense.spent_at)
-            == datetime(target_year, target_month, 1, tzinfo=timezone.utc),
+            == datetime(target_year, target_month, 1, tzinfo=UTC),
         ),
     )
     total_spent: Decimal = total_spent_result.scalar() or Decimal("0")
@@ -120,7 +132,7 @@ async def get_monthly_standing(
     categories_analytics: list[CategoryAnalytics] = []
     for category in budget.daily_categories:
         # Today's spending for this category
-        today_start = datetime(today.year, today.month, today.day, tzinfo=timezone.utc)
+        today_start = datetime(today.year, today.month, today.day, tzinfo=UTC)
         today_end = today_start.replace(hour=23, minute=59, second=59)
 
         today_spent_result = await db.execute(
@@ -136,7 +148,7 @@ async def get_monthly_standing(
         today_spent: Decimal = today_spent_result.scalar() or Decimal("0")
 
         # Month-to-date spending for this category
-        month_start = datetime(target_year, target_month, 1, tzinfo=timezone.utc)
+        month_start = datetime(target_year, target_month, 1, tzinfo=UTC)
         month_end = datetime(
             target_year,
             target_month,
@@ -144,7 +156,7 @@ async def get_monthly_standing(
             23,
             59,
             59,
-            tzinfo=timezone.utc,
+            tzinfo=UTC,
         )
 
         month_spent_result = await db.execute(
@@ -186,6 +198,7 @@ async def get_monthly_standing(
         status=status_str,  # type: ignore[call-arg]
         daily_allowance=daily_allowance,
         remaining_days=remaining_days,
+        budget_name=budget.name,
         categories=categories_analytics,
     )
 
@@ -195,8 +208,9 @@ async def get_category_reminders(
     user_id: UUID,
     month: int | None = None,
     year: int | None = None,
+    budget_name: str | None = None,
 ) -> list[DailyCategory]:
-    """Retrieve all categories that have reminder times set for the given month.
+    """Retrieve all categories that have reminder times set for the given named budget.
 
     This is used by the mobile app to schedule push notifications
     for categories where the user has enabled reminders.
@@ -206,6 +220,7 @@ async def get_category_reminders(
         user_id: The user's UUID.
         month: Target month (1-12). Defaults to current month.
         year: Target year. Defaults to current year.
+        budget_name: Optional name of the specific budget to query.
 
     Returns:
         List of DailyCategory instances with reminder_time set,
@@ -214,7 +229,7 @@ async def get_category_reminders(
     target_month = month or date.today().month
     target_year = year or date.today().year
 
-    result = await db.execute(
+    query = (
         select(DailyCategory)
         .join(MonthlyBudget, DailyCategory.monthly_budget_id == MonthlyBudget.id)
         .where(
@@ -223,6 +238,11 @@ async def get_category_reminders(
             MonthlyBudget.year == target_year,
             DailyCategory.reminder_time.isnot(None),
         )
-        .order_by(DailyCategory.reminder_time.asc()),
+        .order_by(DailyCategory.reminder_time.asc())
     )
+
+    if budget_name is not None:
+        query = query.where(MonthlyBudget.name == budget_name)
+
+    result = await db.execute(query)
     return list(result.scalars().all())

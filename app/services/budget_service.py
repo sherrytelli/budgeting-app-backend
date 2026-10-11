@@ -1,24 +1,24 @@
 """Budget service: CRUD operations for monthly budgets and categories.
 
 This module handles all business logic related to monthly budgets,
-including creation, retrieval, updates, and deletion. It enforces
-constraints like preventing duplicate month/year combinations per user.
+including creation, retrieval, updates, and deletion. Named budgets
+allow multiple budgets per month/year, with unique constraint enforcement
+on (user_id, name, month, year).
 """
 
 from __future__ import annotations
 
 from datetime import date
-from decimal import Decimal
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 from fastapi import HTTPException, status
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.budget import MonthlyBudget
-from app.models.category import DailyCategory
 
 if TYPE_CHECKING:
     from app.schemas.budget import MonthlyBudgetCreate, MonthlyBudgetUpdate
@@ -41,9 +41,10 @@ async def create_monthly_budget(
     user_id: UUID,
     data: MonthlyBudgetCreate,
 ) -> MonthlyBudget:
-    """Create a new monthly budget for the user.
+    """Create a new named monthly budget for the user.
 
-    Validates that no budget already exists for the same month and year.
+    Allows multiple budgets per month/year as long as each has a distinct name.
+    Uniqueness is enforced by the database constraint on (user_id, name, month, year).
 
     Args:
         db: Async database session.
@@ -54,31 +55,34 @@ async def create_monthly_budget(
         The newly created MonthlyBudget instance.
 
     Raises:
-        HTTPException: If a budget for this month/year already exists (409).
+        HTTPException: If a budget with this name already exists for the month/year (409).
     """
-    existing = await db.execute(
-        select(MonthlyBudget).where(
-            MonthlyBudget.user_id == user_id,
-            MonthlyBudget.month == data.month,
-            MonthlyBudget.year == data.year,
-        ),
-    )
-    if existing.scalar_one_or_none() is not None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Budget for {data.month}/{data.year} already exists",
-        )
-
     budget = MonthlyBudget(
         user_id=user_id,
+        name=data.name,
         month=data.month,
         year=data.year,
         total_limit=data.total_limit,
         currency=data.currency,
     )
     db.add(budget)
-    await db.flush()
-    await db.refresh(budget)
+
+    try:
+        await db.flush()
+        await db.refresh(budget)
+    except IntegrityError as exc:
+        db.rollback()
+        month_names = {
+            1: "January", 2: "February", 3: "March", 4: "April",
+            5: "May", 6: "June", 7: "July", 8: "August",
+            9: "September", 10: "October", 11: "November", 12: "December",
+        }
+        month_label = month_names.get(data.month, str(data.month))
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Budget name '{data.name}' already exists for {month_label} {data.year}",
+        ) from exc
+
     return budget
 
 
@@ -109,16 +113,18 @@ async def get_user_budgets(
 async def get_current_budget(
     db: AsyncSession,
     user_id: UUID,
-) -> MonthlyBudget | None:
-    """Find the budget for the current month and year, with categories loaded.
+) -> list[MonthlyBudget]:
+    """Find all budgets for the current month and year, with categories loaded.
+
+    With named budgets, there may be multiple budgets for the same month/year.
 
     Args:
         db: Async database session.
         user_id: The owning user's UUID.
 
     Returns:
-        The current MonthlyBudget instance with daily_categories eagerly loaded,
-        or None if none exists.
+        List of MonthlyBudget instances for the current month/year with
+        daily_categories eagerly loaded. May be empty if no budgets exist.
     """
     today = date.today()
     result = await db.execute(
@@ -130,7 +136,7 @@ async def get_current_budget(
         )
         .options(selectinload(MonthlyBudget.daily_categories)),
     )
-    return result.scalar_one_or_none()
+    return list(result.scalars().all())
 
 
 async def get_budget_with_categories(
