@@ -32,10 +32,11 @@ def configure_logging(level: int = logging.INFO, environment: str = "development
     is_production = environment == "production"
 
     # Choose renderer based on environment
-    if is_production:
-        renderer = structlog.processors.JSONRenderer()
-    else:
-        renderer = structlog.dev.ConsoleRenderer(colors=True)
+    renderer = (
+        structlog.processors.JSONRenderer()
+        if is_production
+        else structlog.dev.ConsoleRenderer(colors=True)
+    )
 
     structlog.configure(
         processors=[
