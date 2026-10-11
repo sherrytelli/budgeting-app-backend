@@ -22,14 +22,13 @@ from pydantic import ValidationError
 from app import __version__
 from app.api.v1.api import api_router
 from app.core.config import get_settings
-
 from app.core.logging import configure_logging, get_logger
 
 settings = get_settings()
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> None:
     """Application lifespan handler.
 
     Configures structured logging on startup and logs shutdown.
@@ -55,7 +54,10 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Budgeting App Backend",
-    description="A production-ready FastAPI backend for a personal budgeting Android app with hierarchical budgeting, JWT authentication, and PostgreSQL.",
+    description=(
+        "A production-ready FastAPI backend for a personal budgeting Android app "
+        "with hierarchical budgeting, JWT authentication, and PostgreSQL."
+    ),
     version=__version__,
     lifespan=lifespan,
 )
@@ -75,7 +77,15 @@ app.add_middleware(
 
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
-    """Middleware that adds request ID, timing, and structured logging for every request."""
+    """Middleware that adds request ID, timing, and structured logging for every request.
+
+    Args:
+        request: The incoming HTTP request.
+        call_next: The next middleware/handler in the chain.
+
+    Returns:
+        The HTTP response.
+    """
     request_id = str(uuid.uuid4())
     request.state.request_id = request_id
 
@@ -175,6 +185,6 @@ app.include_router(api_router)
 
 
 @app.get("/health", tags=["Health"])
-async def health_check():
+async def health_check() -> dict[str, str]:
     """Health check endpoint for Docker and load balancer probes."""
     return {"status": "ok"}
