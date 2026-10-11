@@ -27,19 +27,24 @@ class MonthlyBudget(Base, TimestampMixin):
     """Monthly budget for a user.
 
     Represents the total spending limit for a specific month and year.
+    Multiple named budgets can exist per month (e.g., "Regular", "Vacation").
     Can be subdivided into daily category budgets via DailyCategory.
     """
 
     __tablename__ = "monthly_budgets"
 
     __table_args__ = (
-        UniqueConstraint("user_id", "month", "year", name="uq_monthly_budget_user_month_year"),
+        UniqueConstraint(
+            "user_id", "name", "month", "year",
+            name="uq_monthly_budget_user_name_month_year",
+        ),
         CheckConstraint("month >= 1 AND month <= 12", name="ck_monthly_budget_month_range"),
         CheckConstraint("year >= 2000", name="ck_monthly_budget_year_range"),
     )
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    name: Mapped[str] = mapped_column(String(100))
     month: Mapped[int] = mapped_column()
     year: Mapped[int] = mapped_column()
     total_limit: Mapped[Decimal] = mapped_column(Numeric(12, 2))
