@@ -87,9 +87,9 @@ async def create_expense(
 async def list_expenses(
     db: Annotated[AsyncSession, Depends(get_db)],
     user: ActiveUserDep,
-    category_id: UUID | None = Query(default=None),
-    start_date: datetime | None = Query(default=None),
-    end_date: datetime | None = Query(default=None),
+    category_id: UUID | None = None,
+    start_date: datetime | None = None,
+    end_date: datetime | None = None,
     month: int | None = Query(default=None, ge=1, le=12),
     year: int | None = Query(default=None, ge=2000),
     limit: int = Query(default=100, ge=1, le=1000),
