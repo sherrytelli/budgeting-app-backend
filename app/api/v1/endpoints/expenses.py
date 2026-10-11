@@ -92,6 +92,7 @@ async def list_expenses(
     end_date: datetime | None = None,
     month: int | None = Query(default=None, ge=1, le=12),
     year: int | None = Query(default=None, ge=2000),
+    budget_name: str | None = Query(default=None, description="Filter by budget name"),
     limit: int = Query(default=100, ge=1, le=1000),
     offset: int = Query(default=0, ge=0),
 ) -> list[ExpenseRead]:
@@ -100,6 +101,8 @@ async def list_expenses(
     All filters are optional. When month/year are provided, expenses
     are filtered by the month portion of their ``spent_at`` timestamp.
     When category_id is provided, the category must belong to the user.
+    When budget_name is provided, only expenses from that specific budget
+    are returned (useful when a user has multiple budgets for the same month).
 
     Args:
         category_id: Filter by category UUID.
@@ -107,6 +110,7 @@ async def list_expenses(
         end_date: Filter expenses on or before this date.
         month: Filter by month (1-12).
         year: Filter by year.
+        budget_name: Filter by budget name (e.g. "Regular", "Vacation").
         limit: Max results to return (1-1000).
         offset: Pagination offset.
         db: Database session.
@@ -121,6 +125,9 @@ async def list_expenses(
         .join(MonthlyBudget, DailyCategory.monthly_budget_id == MonthlyBudget.id)
         .where(MonthlyBudget.user_id == user.id)
     )
+
+    if budget_name is not None:
+        query = query.where(MonthlyBudget.name == budget_name)
 
     if category_id is not None:
         query = query.where(Expense.daily_category_id == category_id)
