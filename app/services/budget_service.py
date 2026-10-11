@@ -71,7 +71,7 @@ async def create_monthly_budget(
         await db.flush()
         await db.refresh(budget)
     except IntegrityError as exc:
-        db.rollback()
+        await db.rollback()
         # Check if this is a unique constraint violation on the named-budget constraint
         orig = getattr(exc, "orig", None)
         constraint_name = getattr(orig, "constraint_name", None) if orig else None

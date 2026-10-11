@@ -10,6 +10,7 @@ from __future__ import annotations
 from calendar import monthrange
 from datetime import UTC, date, datetime
 from decimal import Decimal
+from typing import Literal
 from uuid import UUID
 
 from fastapi import HTTPException, status
@@ -111,7 +112,7 @@ async def get_monthly_standing(
     remaining_balance: Decimal = budget.total_limit - total_spent
 
     # Determine status
-    status_str: str = (
+    status_str: Literal["UNDER_BUDGET", "OVER_BUDGET"] = (
         "OVER_BUDGET" if remaining_balance < Decimal("0") else "UNDER_BUDGET"
     )
 
@@ -195,7 +196,7 @@ async def get_monthly_standing(
         total_budget=budget.total_limit,
         total_spent=total_spent,
         remaining_balance=remaining_balance,
-        status=status_str,  # type: ignore[call-arg]
+        status=status_str,
         daily_allowance=daily_allowance,
         remaining_days=remaining_days,
         budget_name=budget.name,
