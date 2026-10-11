@@ -2,15 +2,18 @@
 
 import logging
 import uuid
+from collections.abc import Mapping, MutableMapping
+from typing import Any
 
 import structlog
+from structlog.typing import WrappedLogger
 
 
 def add_request_id(
-    logger: structlog.typing.WrappedLogger,
+    logger: WrappedLogger,
     method_name: str,
-    event_dict: dict[str, object],
-) -> dict[str, object]:
+    event_dict: MutableMapping[str, Any],
+) -> Mapping[str, Any] | str | bytes | bytearray | tuple[Any, ...]:
     """Add a unique request ID to every log event for correlation."""
     if "request_id" not in event_dict:
         event_dict["request_id"] = str(uuid.uuid4())
@@ -70,4 +73,4 @@ def get_logger(name: str | None = None) -> structlog.typing.FilteringBoundLogger
     Returns:
         A bound logger instance.
     """
-    return structlog.get_logger(name or __name__)
+    return structlog.get_logger(name or __name__)  # type: ignore[no-any-return]
