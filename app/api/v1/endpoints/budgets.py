@@ -57,7 +57,7 @@ async def create_budget(
         HTTPException: If a budget for this month/year already exists (409).
     """
     budget = await create_monthly_budget(db, user.id, data)
-    return budget
+    return MonthlyBudgetRead.model_validate(budget)
 
 
 @router.get(
@@ -81,7 +81,7 @@ async def list_budgets(
         List of MonthlyBudgetRead schemas ordered by year desc, month desc.
     """
     budgets = await get_user_budgets(db, user.id, year=year)
-    return budgets
+    return [MonthlyBudgetRead.model_validate(b) for b in budgets]
 
 
 @router.get(
@@ -106,7 +106,7 @@ async def get_current(
         List of MonthlyBudgetWithCategories schemas for the current month.
     """
     budgets = await get_current_budget(db, user.id)
-    return budgets
+    return [MonthlyBudgetWithCategories.model_validate(b) for b in budgets]
 
 
 @router.get(
@@ -135,7 +135,7 @@ async def get_budget(
         HTTPException: If the budget is not found (404).
     """
     budget = await get_budget_with_categories(db, budget_id, user.id)
-    return budget
+    return MonthlyBudgetWithCategories.model_validate(budget)
 
 
 @router.put(
@@ -164,7 +164,7 @@ async def update(
         HTTPException: If the budget is not found (404).
     """
     budget = await update_budget(db, budget_id, user.id, data)
-    return budget
+    return MonthlyBudgetRead.model_validate(budget)
 
 
 @router.delete(

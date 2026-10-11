@@ -74,7 +74,7 @@ async def register(
     db.add(user)
     await db.flush()
     await db.refresh(user)
-    return user
+    return UserRead.model_validate(user)
 
 
 @router.post(
@@ -146,4 +146,4 @@ async def get_me(
     Returns:
         The current user's profile.
     """
-    return current_user
+    return UserRead.model_validate(current_user)

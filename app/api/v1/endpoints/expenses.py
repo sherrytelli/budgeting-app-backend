@@ -76,7 +76,7 @@ async def create_expense(
     db.add(expense)
     await db.flush()
     await db.refresh(expense)
-    return expense
+    return ExpenseRead.model_validate(expense)
 
 
 @router.get(
@@ -144,7 +144,7 @@ async def list_expenses(
     query = query.order_by(Expense.spent_at.desc()).limit(limit).offset(offset)
 
     result = await db.execute(query)
-    return list(result.scalars().all())
+    return [ExpenseRead.model_validate(e) for e in result.scalars().all()]
 
 
 @router.get(
@@ -189,7 +189,7 @@ async def get_expense(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Expense not found",
         )
-    return expense
+    return ExpenseRead.model_validate(expense)
 
 
 @router.put(
@@ -240,7 +240,7 @@ async def update_expense(
 
     await db.flush()
     await db.refresh(expense)
-    return expense
+    return ExpenseRead.model_validate(expense)
 
 
 @router.delete(

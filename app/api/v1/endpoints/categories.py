@@ -77,7 +77,7 @@ async def create_category(
     db.add(category)
     await db.flush()
     await db.refresh(category)
-    return category
+    return DailyCategoryRead.model_validate(category)
 
 
 @router.get(
@@ -122,7 +122,7 @@ async def list_categories(
         .where(DailyCategory.monthly_budget_id == budget_id)
         .order_by(DailyCategory.name.asc()),
     )
-    return list(result.scalars().all())
+    return [DailyCategoryRead.model_validate(c) for c in result.scalars().all()]
 
 
 @router.put(
@@ -172,7 +172,7 @@ async def update_category(
 
     await db.flush()
     await db.refresh(category)
-    return category
+    return DailyCategoryRead.model_validate(category)
 
 
 @router.delete(
@@ -243,4 +243,4 @@ async def get_reminders(
         List of DailyCategoryRead schemas ordered by reminder_time ascending.
     """
     categories = await get_category_reminders(db, user.id, month=month, year=year)
-    return categories
+    return [DailyCategoryRead.model_validate(c) for c in categories]
