@@ -72,15 +72,26 @@ async def create_monthly_budget(
         await db.refresh(budget)
     except IntegrityError as exc:
         db.rollback()
-        month_names = {
-            1: "January", 2: "February", 3: "March", 4: "April",
-            5: "May", 6: "June", 7: "July", 8: "August",
-            9: "September", 10: "October", 11: "November", 12: "December",
-        }
-        month_label = month_names.get(data.month, str(data.month))
+        # Check if this is a unique constraint violation on the named-budget constraint
+        orig = getattr(exc, "orig", None)
+        constraint_name = getattr(orig, "constraint_name", None) if orig else None
+
+        if constraint_name and "user_name_month_year" in constraint_name:
+            month_names = {
+                1: "January", 2: "February", 3: "March", 4: "April",
+                5: "May", 6: "June", 7: "July", 8: "August",
+                9: "September", 10: "October", 11: "November", 12: "December",
+            }
+            month_label = month_names.get(data.month, str(data.month))
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Budget name '{data.name}' already exists for {month_label} {data.year}",
+            ) from exc
+
+        # Re-raise other integrity errors as 500
         raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Budget name '{data.name}' already exists for {month_label} {data.year}",
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="A database conflict occurred while creating the budget. Please try again.",
         ) from exc
 
     return budget
