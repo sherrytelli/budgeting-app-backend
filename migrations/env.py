@@ -6,18 +6,14 @@ import sys
 from logging.config import fileConfig
 
 from alembic import context
+from dotenv import load_dotenv
 from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
-from dotenv import load_dotenv
 
 # Ensure the project root is on the path so we can import app modules
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from app.models.base import Base  # noqa: E402
-from app.models.budget import MonthlyBudget  # noqa: E402
-from app.models.category import DailyCategory  # noqa: E402
-from app.models.expense import Expense  # noqa: E402
-from app.models.user import User  # noqa: E402
 
 load_dotenv()
 

@@ -1,17 +1,15 @@
 """Daily category model for budget category breakdowns."""
 
-from datetime import datetime, time
+from datetime import time
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
 from sqlalchemy import (
-    DateTime,
     ForeignKey,
     Numeric,
     String,
     Time,
-    func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 

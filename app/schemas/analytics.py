@@ -4,7 +4,6 @@ Defines response schemas for budget analytics, including per-category spending
 breakdowns and overall monthly standing calculations.
 """
 
-from datetime import datetime
 from decimal import Decimal
 from typing import Literal
 from uuid import UUID

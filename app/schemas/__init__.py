@@ -19,6 +19,8 @@ from app.schemas.category import (
     DailyCategoryCreate,
     DailyCategoryRead,
     DailyCategoryUpdate,
+)
+from app.schemas.category import (
     ExpenseRead as CategoryExpenseRead,
 )
 from app.schemas.expense import (

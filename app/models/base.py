@@ -1,7 +1,6 @@
 """SQLAlchemy base model with naming convention and timestamp mixin."""
 
-from datetime import datetime, timezone
-from typing import Any
+from datetime import datetime
 
 from sqlalchemy import DateTime, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column

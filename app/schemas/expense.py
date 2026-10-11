@@ -4,7 +4,7 @@ Defines request/response schemas for creating, reading, updating, and deleting
 individual expense records.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import UUID
 
@@ -24,7 +24,7 @@ class ExpenseCreate(ExpenseBase):
     """Schema for creating a new expense."""
 
     spent_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
+        default_factory=lambda: datetime.now(UTC),
         description="When the expense was incurred (UTC). Defaults to now if not provided.",
     )
 
