@@ -7,7 +7,7 @@ and getting a budget with its nested categories.
 
 from __future__ import annotations
 
-from typing import Annotated, Optional
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -86,26 +86,27 @@ async def list_budgets(
 
 @router.get(
     "/current",
-    response_model=Optional[MonthlyBudgetWithCategories],
-    summary="Get current month's budget with categories",
+    response_model=list[MonthlyBudgetWithCategories],
+    summary="Get current month's budgets with categories",
 )
 async def get_current(
     db: Annotated[AsyncSession, Depends(get_db)],
     user: ActiveUserDep,
-) -> Optional[MonthlyBudgetWithCategories]:
-    """Retrieve the budget for the current month, with its categories.
+) -> list[MonthlyBudgetWithCategories]:
+    """Retrieve all budgets for the current month, with their categories.
+
+    Returns every named budget that exists for the current month/year.
+    An empty list is returned if no budgets exist yet.
 
     Args:
         db: Database session.
         user: The authenticated active user.
 
     Returns:
-        MonthlyBudgetWithCategories if one exists, or None.
+        List of MonthlyBudgetWithCategories schemas for the current month.
     """
-    budget = await get_current_budget(db, user.id)
-    if budget is None:
-        return None
-    return budget
+    budgets = await get_current_budget(db, user.id)
+    return budgets
 
 
 @router.get(

@@ -29,6 +29,7 @@ async def monthly_standing(
     user: ActiveUserDep,
     month: int | None = Query(default=None, ge=1, le=12),
     year: int | None = Query(default=None, ge=2000),
+    budget_name: str | None = Query(default=None, description="Target budget name"),
 ) -> MonthlyStanding:
     """Calculate the user's overall monthly budget standing.
 
@@ -39,6 +40,7 @@ async def monthly_standing(
     Args:
         month: Target month (1-12). Defaults to current month.
         year: Target year. Defaults to current year.
+        budget_name: Target budget name (e.g., "Regular", "Vacation").
         db: Database session.
         user: The authenticated active user.
 
@@ -48,5 +50,5 @@ async def monthly_standing(
     Raises:
         HTTPException: If no budget exists for the given month/year (404).
     """
-    standing = await get_monthly_standing(db, user.id, month=month, year=year)
+    standing = await get_monthly_standing(db, user.id, month=month, year=year, budget_name=budget_name)
     return standing
