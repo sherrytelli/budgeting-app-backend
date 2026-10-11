@@ -1,20 +1,19 @@
 """initial schema
 
 Revision ID: 104bbd1ae3ee
-Revises: 
+Revises:
 Create Date: 2026-10-08 19:35:08.567829
 """
-from typing import Sequence, Union
+from collections.abc import Sequence
 
-from alembic import op
 import sqlalchemy as sa
-
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = '104bbd1ae3ee'
-down_revision: Union[str, None] = None
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = None
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -40,9 +39,19 @@ def upgrade() -> None:
     sa.Column('currency', sa.String(length=3), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.CheckConstraint('month >= 1 AND month <= 12', name=op.f('ck_monthly_budgets_ck_monthly_budget_month_range')),
-    sa.CheckConstraint('year >= 2000', name=op.f('ck_monthly_budgets_ck_monthly_budget_year_range')),
-    sa.ForeignKeyConstraint(['user_id'], ['users.id'], name=op.f('fk_monthly_budgets_user_id_users'), ondelete='CASCADE'),
+    sa.CheckConstraint(
+        'month >= 1 AND month <= 12',
+        name=op.f('ck_monthly_budgets_ck_monthly_budget_month_range'),
+    ),
+    sa.CheckConstraint(
+        'year >= 2000',
+        name=op.f('ck_monthly_budgets_ck_monthly_budget_year_range'),
+    ),
+    sa.ForeignKeyConstraint(
+        ['user_id'], ['users.id'],
+        name=op.f('fk_monthly_budgets_user_id_users'),
+        ondelete='CASCADE',
+    ),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_monthly_budgets')),
     sa.UniqueConstraint('user_id', 'month', 'year', name='uq_monthly_budget_user_month_year')
     )
@@ -55,7 +64,11 @@ def upgrade() -> None:
     sa.Column('icon', sa.String(length=20), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.ForeignKeyConstraint(['monthly_budget_id'], ['monthly_budgets.id'], name=op.f('fk_daily_categories_monthly_budget_id_monthly_budgets'), ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(
+        ['monthly_budget_id'], ['monthly_budgets.id'],
+        name=op.f('fk_daily_categories_monthly_budget_id_monthly_budgets'),
+        ondelete='CASCADE',
+    ),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_daily_categories'))
     )
     op.create_table('expenses',
@@ -66,7 +79,11 @@ def upgrade() -> None:
     sa.Column('spent_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.ForeignKeyConstraint(['daily_category_id'], ['daily_categories.id'], name=op.f('fk_expenses_daily_category_id_daily_categories'), ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(
+        ['daily_category_id'], ['daily_categories.id'],
+        name=op.f('fk_expenses_daily_category_id_daily_categories'),
+        ondelete='CASCADE',
+    ),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_expenses'))
     )
     op.create_index(op.f('ix_expenses_spent_at'), 'expenses', ['spent_at'], unique=False)
