@@ -14,6 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 class MonthlyBudgetBase(BaseModel):
     """Base schema for monthly budget fields."""
 
+    name: str = Field(min_length=1, max_length=100, description="Budget label (e.g. Regular, Vacation)")
     month: int = Field(ge=1, le=12, description="Month (1-12)")
     year: int = Field(ge=2000, description="Year (e.g. 2026)")
     total_limit: Decimal = Field(gt=0, description="Total monthly spending limit")
@@ -29,6 +30,7 @@ class MonthlyBudgetCreate(MonthlyBudgetBase):
 class MonthlyBudgetUpdate(BaseModel):
     """Schema for updating an existing monthly budget (all fields optional)."""
 
+    name: str | None = Field(default=None, min_length=1, max_length=100)
     month: int | None = Field(default=None, ge=1, le=12)
     year: int | None = Field(default=None, ge=2000)
     total_limit: Decimal | None = Field(default=None, gt=0)

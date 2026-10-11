@@ -39,6 +39,7 @@ class MonthlyStanding(BaseModel):
     remaining_days: int = Field(
         description="Number of remaining days in the current month (including today)",
     )
+    budget_name: str | None = Field(default=None, description="Name of the budget this analytics applies to")
     categories: list[CategoryAnalytics] = Field(
         default_factory=list,
         description="Per-category analytics breakdown",
