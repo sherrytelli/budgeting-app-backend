@@ -6,6 +6,7 @@ monthly budgets along with their nested category breakdowns.
 
 from datetime import datetime, time
 from decimal import Decimal
+from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -63,11 +64,11 @@ class CategoryRead(BaseModel):
 
     @field_validator("reminder_time", mode="before")
     @classmethod
-    def convert_reminder_time(cls, v):
+    def convert_reminder_time(cls, v: Any) -> str | None:
         """Convert datetime.time objects to HH:MM:SS strings."""
         if isinstance(v, time):
             return v.strftime("%H:%M:%S")
-        return v
+        return v  # type: ignore[no-any-return]
 
 
 class MonthlyBudgetWithCategories(MonthlyBudgetRead):
