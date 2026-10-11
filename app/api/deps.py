@@ -10,12 +10,10 @@ from typing import Annotated
 
 from fastapi import Depends, HTTPException, status
 from pydantic import BaseModel, Field
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import CurrentUserDep, get_current_user
 from app.models.user import User
-
 
 # --- Re-exports ---
 
@@ -24,7 +22,6 @@ __all__ = [
     "get_current_user",
     "get_current_active_user",
     "PaginationParams",
-    "get_db_paginated",
     "CurrentUserDep",
 ]
 
