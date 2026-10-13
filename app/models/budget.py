@@ -37,6 +37,10 @@ class MonthlyBudget(Base, TimestampMixin):
         ),
         CheckConstraint("month >= 1 AND month <= 12", name="ck_monthly_budget_month_range"),
         CheckConstraint("year >= 2000", name="ck_monthly_budget_year_range"),
+        # Base renders this through "ck_%(table_name)s_%(constraint_name)s",
+        # yielding the DB-level name ck_monthly_budgets_currency (the matching
+        # migration declares that final name directly via op.f(...)).
+        CheckConstraint("currency IN ('PKR', 'USD')", name="currency"),
     )
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
