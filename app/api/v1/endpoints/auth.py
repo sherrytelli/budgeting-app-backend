@@ -15,11 +15,10 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_db
+from app.api.deps import ActiveUserDep, get_db
 from app.core.config import get_settings
 from app.core.security import (
     create_access_token,
-    get_current_user,
     hash_password,
     verify_password,
 )
@@ -74,6 +73,7 @@ async def register(
     db.add(user)
     await db.flush()
     await db.refresh(user)
+    await db.commit()
     return UserRead.model_validate(user)
 
 
@@ -101,8 +101,11 @@ async def login(
     Raises:
         HTTPException: If credentials are invalid (401).
     """
+    # Emails are stored lowercase (schema + lower(email) unique index);
+    # normalize the login identifier so auth is case-insensitive.
+    username = form_data.username.strip().lower()
     result = await db.execute(
-        select(User).where(User.email == form_data.username),
+        select(User).where(User.email == username),
     )
     user = result.scalar_one_or_none()
 
@@ -134,14 +137,15 @@ async def login(
     summary="Get current user profile",
 )
 async def get_me(
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: ActiveUserDep,
 ) -> UserRead:
     """Retrieve the authenticated user's profile.
 
-    This is a protected endpoint that requires a valid Bearer JWT token.
+    This is a protected endpoint that requires a valid Bearer JWT token;
+    inactive accounts are rejected with 403.
 
     Args:
-        current_user: The authenticated user from JWT.
+        current_user: The authenticated active user from JWT.
 
     Returns:
         The current user's profile.

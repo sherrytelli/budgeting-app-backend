@@ -77,6 +77,7 @@ async def create_category(
     db.add(category)
     await db.flush()
     await db.refresh(category)
+    await db.commit()
     return DailyCategoryRead.model_validate(category)
 
 
@@ -172,6 +173,7 @@ async def update_category(
 
     await db.flush()
     await db.refresh(category)
+    await db.commit()
     return DailyCategoryRead.model_validate(category)
 
 
@@ -215,6 +217,7 @@ async def delete_category(
 
     await db.delete(category)
     await db.flush()
+    await db.commit()
 
 
 @router.get(

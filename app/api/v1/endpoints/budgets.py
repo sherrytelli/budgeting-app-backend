@@ -7,6 +7,7 @@ and getting a budget with its nested categories.
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Annotated
 from uuid import UUID
 
@@ -20,9 +21,11 @@ from app.schemas.budget import (
     MonthlyBudgetUpdate,
     MonthlyBudgetWithCategories,
 )
+from app.schemas.category import CategoryWithExpenses
 from app.services.budget_service import (
     create_monthly_budget,
     delete_budget,
+    get_budget_daily_view,
     get_budget_with_categories,
     get_current_budget,
     get_user_budgets,
@@ -69,11 +72,13 @@ async def list_budgets(
     db: Annotated[AsyncSession, Depends(get_db)],
     user: ActiveUserDep,
     year: int | None = Query(default=None, ge=2000),
+    month: int | None = Query(default=None, ge=1, le=12),
 ) -> list[MonthlyBudgetRead]:
     """List all monthly budgets for the authenticated user.
 
     Args:
         year: Optional year filter.
+        month: Optional month filter (1-12).
         db: Database session.
         user: The authenticated active user.
 
@@ -81,7 +86,7 @@ async def list_budgets(
         List of MonthlyBudgetRead schemas ordered by year desc, month desc,
         each carrying its total_spent.
     """
-    rows = await get_user_budgets(db, user.id, year=year)
+    rows = await get_user_budgets(db, user.id, year=year, month=month)
     reads: list[MonthlyBudgetRead] = []
     for budget, total_spent in rows:
         read = MonthlyBudgetRead.model_validate(budget)
@@ -113,6 +118,38 @@ async def get_current(
     """
     budgets = await get_current_budget(db, user.id)
     return [MonthlyBudgetWithCategories.model_validate(b) for b in budgets]
+
+
+@router.get(
+    "/{budget_id}/daily",
+    response_model=list[CategoryWithExpenses],
+    summary="Get a budget's daily category panel",
+)
+async def get_budget_daily(
+    budget_id: UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    user: ActiveUserDep,
+    date: Annotated[date, Query(description="Wall-clock day (YYYY-MM-DD) to build the panel for")],
+) -> list[CategoryWithExpenses]:
+    """Build the per-category panel for one day of a budget.
+
+    Returns every category of the budget with its row total and the day's
+    expenses (ordered by spent_at ascending). Categories with no spending
+    that day are included with spent=0 and an empty expense list.
+
+    Args:
+        budget_id: The budget's UUID.
+        date: The wall-clock day (spent_date) to build the panel for.
+        db: Database session.
+        user: The authenticated active user.
+
+    Returns:
+        List of CategoryWithExpenses rows ordered by category name ASC.
+
+    Raises:
+        HTTPException: If the budget is not found or doesn't belong to user (404).
+    """
+    return await get_budget_daily_view(db, budget_id, user.id, date)
 
 
 @router.get(
