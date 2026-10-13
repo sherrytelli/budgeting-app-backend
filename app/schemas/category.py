@@ -10,6 +10,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.schemas.expense import ExpenseRead
+
 
 class DailyCategoryBase(BaseModel):
     """Base schema for daily category fields."""
@@ -22,8 +24,6 @@ class DailyCategoryBase(BaseModel):
 
 class DailyCategoryCreate(DailyCategoryBase):
     """Schema for creating a new daily category."""
-
-    pass
 
 
 class DailyCategoryUpdate(BaseModel):
@@ -46,23 +46,14 @@ class DailyCategoryRead(DailyCategoryBase):
     updated_at: datetime = Field(description="Last update timestamp (UTC)")
 
 
-class ExpenseRead(BaseModel):
-    """Schema for an expense nested inside a category read."""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    id: UUID = Field(description="Expense unique identifier")
-    amount: Decimal = Field(description="Expense amount")
-    note: str | None = Field(default=None, description="Optional expense note")
-    spent_at: datetime = Field(description="When the expense was incurred (UTC)")
-    created_at: datetime = Field(description="Creation timestamp (UTC)")
-    updated_at: datetime = Field(description="Last update timestamp (UTC)")
-
-
 class CategoryWithExpenses(DailyCategoryRead):
     """Daily category read schema with nested expense list."""
 
     expenses: list[ExpenseRead] = Field(
         default_factory=list,
         description="List of expenses within this category",
+    )
+    spent: Decimal = Field(
+        default=Decimal("0"),
+        description="Total amount spent in this category on the requested day",
     )

@@ -6,10 +6,26 @@ monthly budgets along with their nested category breakdowns.
 
 from datetime import datetime, time
 from decimal import Decimal
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
+
+# Upper bound matching the Numeric(12, 2) money columns.
+MONEY_MAX = Decimal("99999999999.99")
+
+BUDGET_FIELDS: tuple[str, ...] = ("name", "month", "year", "total_limit", "currency")
+
+
+def reject_null_budget_field(value: Any, info: ValidationInfo) -> Any:
+    """Reject explicit JSON nulls on budget fields.
+
+    Without this, ``null`` passes through ``mode="before"`` hooks and reaches
+    the ORM as None, surfacing as a 500 instead of a field-level 422.
+    """
+    if value is None:
+        raise ValueError(f"{info.field_name} must not be null")
+    return value
 
 
 class MonthlyBudgetBase(BaseModel):
@@ -18,24 +34,30 @@ class MonthlyBudgetBase(BaseModel):
     name: str = Field(min_length=1, max_length=100, description="Budget label (e.g. Regular, Vacation)")
     month: int = Field(ge=1, le=12, description="Month (1-12)")
     year: int = Field(ge=2000, description="Year (e.g. 2026)")
-    total_limit: Decimal = Field(gt=0, description="Total monthly spending limit")
-    currency: str = Field(default="PKR", max_length=3, description="Currency code (default: PKR)")
+    total_limit: Decimal = Field(gt=0, le=MONEY_MAX, description="Total monthly spending limit")
+    currency: Literal["PKR", "USD"] = Field(default="PKR", description="Currency code (PKR or USD, default: PKR)")
+
+    _reject_nulls = field_validator(*BUDGET_FIELDS, mode="before")(reject_null_budget_field)
 
 
 class MonthlyBudgetCreate(MonthlyBudgetBase):
     """Schema for creating a new monthly budget."""
 
-    pass
-
 
 class MonthlyBudgetUpdate(BaseModel):
-    """Schema for updating an existing monthly budget (all fields optional)."""
+    """Schema for updating an existing monthly budget (all fields optional).
+
+    Fields omitted from the payload are left unchanged; explicitly sending
+    ``null`` is rejected with a 422 instead of being applied as a no-op.
+    """
 
     name: str | None = Field(default=None, min_length=1, max_length=100)
     month: int | None = Field(default=None, ge=1, le=12)
     year: int | None = Field(default=None, ge=2000)
-    total_limit: Decimal | None = Field(default=None, gt=0)
-    currency: str | None = Field(default=None, max_length=3)
+    total_limit: Decimal | None = Field(default=None, gt=0, le=MONEY_MAX)
+    currency: Literal["PKR", "USD"] | None = Field(default=None, description="Currency code (PKR or USD)")
+
+    _reject_nulls = field_validator(*BUDGET_FIELDS, mode="before")(reject_null_budget_field)
 
 
 class MonthlyBudgetRead(MonthlyBudgetBase):
@@ -45,6 +67,10 @@ class MonthlyBudgetRead(MonthlyBudgetBase):
 
     id: UUID = Field(description="Budget unique identifier")
     user_id: UUID = Field(description="Owner user ID")
+    total_spent: Decimal = Field(
+        default=Decimal("0"),
+        description="Total spent against this budget's month so far (populated by list/detail queries)",
+    )
     created_at: datetime = Field(description="Creation timestamp (UTC)")
     updated_at: datetime = Field(description="Last update timestamp (UTC)")
 
@@ -72,12 +98,17 @@ class CategoryRead(BaseModel):
 
 
 class MonthlyBudgetWithCategories(MonthlyBudgetRead):
-    """Monthly budget read schema with nested category breakdowns."""
+    """Monthly budget read schema with nested category breakdowns.
+
+    Serialized as ``categories``; ``validation_alias`` keeps the ORM
+    attribute lookup on ``daily_categories`` without leaking the alias to
+    the response payload.
+    """
 
     model_config = ConfigDict(populate_by_name=True)
 
     categories: list[CategoryRead] = Field(
         default_factory=list,
+        validation_alias="daily_categories",
         description="List of daily categories within this budget",
-        alias="daily_categories",
     )

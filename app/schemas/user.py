@@ -4,9 +4,10 @@ Defines request/response schemas for user CRUD operations.
 """
 
 from datetime import datetime
+from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 
 class UserBase(BaseModel):
@@ -14,6 +15,14 @@ class UserBase(BaseModel):
 
     email: EmailStr = Field(description="User email address")
     full_name: str | None = Field(default=None, max_length=100, description="User's full name")
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def normalize_email(cls, value: Any) -> Any:
+        """Trim and lowercase emails to match the DB's lower(email) unique index."""
+        if isinstance(value, str):
+            return value.strip().lower()
+        return value
 
 
 class UserCreate(UserBase):
