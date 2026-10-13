@@ -78,10 +78,16 @@ async def list_budgets(
         user: The authenticated active user.
 
     Returns:
-        List of MonthlyBudgetRead schemas ordered by year desc, month desc.
+        List of MonthlyBudgetRead schemas ordered by year desc, month desc,
+        each carrying its total_spent.
     """
-    budgets = await get_user_budgets(db, user.id, year=year)
-    return [MonthlyBudgetRead.model_validate(b) for b in budgets]
+    rows = await get_user_budgets(db, user.id, year=year)
+    reads: list[MonthlyBudgetRead] = []
+    for budget, total_spent in rows:
+        read = MonthlyBudgetRead.model_validate(budget)
+        read.total_spent = total_spent
+        reads.append(read)
+    return reads
 
 
 @router.get(
@@ -134,8 +140,10 @@ async def get_budget(
     Raises:
         HTTPException: If the budget is not found (404).
     """
-    budget = await get_budget_with_categories(db, budget_id, user.id)
-    return MonthlyBudgetWithCategories.model_validate(budget)
+    budget, total_spent = await get_budget_with_categories(db, budget_id, user.id)
+    read = MonthlyBudgetWithCategories.model_validate(budget)
+    read.total_spent = total_spent
+    return read
 
 
 @router.put(

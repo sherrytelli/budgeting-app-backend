@@ -22,7 +22,7 @@ from app.schemas.category import (
     DailyCategoryRead,
     DailyCategoryUpdate,
 )
-from app.services.analytics_service import get_category_reminders
+from app.services.reminders_service import get_category_reminders
 
 router = APIRouter(tags=["categories"])
 

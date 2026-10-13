@@ -3,7 +3,6 @@
 Exports all request/response schemas for the API layer.
 """
 
-from app.schemas.analytics import CategoryAnalytics, MonthlyStanding
 from app.schemas.auth import Token, TokenData, UserLogin, UserRegister
 from app.schemas.budget import (
     CategoryRead,
@@ -30,9 +29,6 @@ from app.schemas.expense import (
 from app.schemas.user import UserCreate, UserRead, UserUpdate
 
 __all__ = [
-    # Analytics
-    "CategoryAnalytics",
-    "MonthlyStanding",
     # Auth
     "Token",
     "TokenData",

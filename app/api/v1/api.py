@@ -7,7 +7,6 @@ in the main FastAPI application.
 
 from fastapi import APIRouter
 
-from app.api.v1.endpoints.analytics import router as analytics_router
 from app.api.v1.endpoints.auth import router as auth_router
 from app.api.v1.endpoints.budgets import router as budgets_router
 from app.api.v1.endpoints.categories import router as categories_router
@@ -22,4 +21,3 @@ api_router.include_router(auth_router)
 api_router.include_router(budgets_router)
 api_router.include_router(categories_router)
 api_router.include_router(expenses_router)
-api_router.include_router(analytics_router)

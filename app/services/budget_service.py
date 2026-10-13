@@ -4,21 +4,32 @@ This module handles all business logic related to monthly budgets,
 including creation, retrieval, updates, and deletion. Named budgets
 allow multiple budgets per month/year, with unique constraint enforcement
 on (user_id, name, month, year).
+
+All write operations commit explicitly so that a write-then-immediate-read
+in a separate request always observes the committed data. ``get_db``'s
+trailing commit remains as a no-op safety net.
 """
 
 from __future__ import annotations
 
+import re
+from collections import defaultdict
 from datetime import date
+from decimal import Decimal
 from typing import TYPE_CHECKING
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.budget import MonthlyBudget
+from app.models.category import DailyCategory
+from app.models.expense import Expense
+from app.schemas.category import CategoryWithExpenses
+from app.schemas.expense import ExpenseRead
 
 if TYPE_CHECKING:
     from app.schemas.budget import MonthlyBudgetCreate, MonthlyBudgetUpdate
@@ -26,11 +37,81 @@ if TYPE_CHECKING:
 __all__ = [
     "create_monthly_budget",
     "delete_budget",
+    "get_budget_daily_view",
     "get_budget_with_categories",
     "get_current_budget",
     "get_user_budgets",
     "update_budget",
 ]
+
+_MONTH_NAMES: dict[int, str] = {
+    1: "January", 2: "February", 3: "March", 4: "April",
+    5: "May", 6: "June", 7: "July", 8: "August",
+    9: "September", 10: "October", 11: "November", 12: "December",
+}
+
+_DUPLICATE_BUDGET_CONSTRAINT_FRAGMENT = "user_name_month_year"
+
+
+# --- IntegrityError Helpers ---
+
+
+def _constraint_name(exc: IntegrityError) -> str | None:
+    """Extract the violated DB constraint name from an IntegrityError.
+
+    The layer the constraint name lives at depends on the driver/asyncpg
+    wrapping: it may sit directly on ``exc.orig`` or one level deeper on
+    ``exc.orig.orig`` (live-confirmed for this stack). As a last resort,
+    parse it out of the error message text.
+
+    Args:
+        exc: The caught IntegrityError.
+
+    Returns:
+        The constraint name, or None if it could not be determined.
+    """
+    orig = getattr(exc, "orig", None)
+    if orig is None:
+        return None
+
+    direct = getattr(orig, "constraint_name", None)
+    if isinstance(direct, str) and direct:
+        return direct
+
+    nested = getattr(orig, "orig", None)
+    if nested is not None:
+        nested_name = getattr(nested, "constraint_name", None)
+        if isinstance(nested_name, str) and nested_name:
+            return nested_name
+
+    match = re.search(r'constraint\s+"([^"]+)"', str(orig))
+    return match.group(1) if match else None
+
+
+def _is_duplicate_budget_conflict(exc: IntegrityError) -> bool:
+    """Return True if the IntegrityError is the named-budget unique constraint."""
+    constraint_name = _constraint_name(exc)
+    return (
+        constraint_name is not None
+        and _DUPLICATE_BUDGET_CONSTRAINT_FRAGMENT in constraint_name
+    )
+
+
+def _duplicate_budget_detail(name: str, month: int, year: int) -> str:
+    """Build the 409 detail message for a duplicate named budget.
+
+    The mobile app renders its own text on 409 responses, but the message
+    stays descriptive for direct API consumers and logs.
+    """
+    month_label = _MONTH_NAMES.get(month, str(month))
+    return f"Budget name '{name}' already exists for {month_label} {year}"
+
+
+def _budget_conflict_exception(name: str, month: int, year: int) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail=_duplicate_budget_detail(name, month, year),
+    )
 
 
 # --- Budget CRUD Operations ---
@@ -52,7 +133,7 @@ async def create_monthly_budget(
         data: Validated budget creation data.
 
     Returns:
-        The newly created MonthlyBudget instance.
+        The newly created and committed MonthlyBudget instance.
 
     Raises:
         HTTPException: If a budget with this name already exists for the month/year (409).
@@ -72,21 +153,8 @@ async def create_monthly_budget(
         await db.refresh(budget)
     except IntegrityError as exc:
         await db.rollback()
-        # Check if this is a unique constraint violation on the named-budget constraint
-        orig = getattr(exc, "orig", None)
-        constraint_name = getattr(orig, "constraint_name", None) if orig else None
-
-        if constraint_name and "user_name_month_year" in constraint_name:
-            month_names = {
-                1: "January", 2: "February", 3: "March", 4: "April",
-                5: "May", 6: "June", 7: "July", 8: "August",
-                9: "September", 10: "October", 11: "November", 12: "December",
-            }
-            month_label = month_names.get(data.month, str(data.month))
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f"Budget name '{data.name}' already exists for {month_label} {data.year}",
-            ) from exc
+        if _is_duplicate_budget_conflict(exc):
+            raise _budget_conflict_exception(data.name, data.month, data.year) from exc
 
         # Re-raise other integrity errors as 500
         raise HTTPException(
@@ -94,6 +162,7 @@ async def create_monthly_budget(
             detail="A database conflict occurred while creating the budget. Please try again.",
         ) from exc
 
+    await db.commit()
     return budget
 
 
@@ -101,24 +170,45 @@ async def get_user_budgets(
     db: AsyncSession,
     user_id: UUID,
     year: int | None = None,
-) -> list[MonthlyBudget]:
-    """List all monthly budgets for a user, optionally filtered by year.
+    month: int | None = None,
+) -> list[tuple[MonthlyBudget, Decimal]]:
+    """List all monthly budgets for a user with their total spending.
 
     Args:
         db: Async database session.
         user_id: The owning user's UUID.
         year: Optional year filter.
+        month: Optional month filter (1-12).
 
     Returns:
-        List of MonthlyBudget instances ordered by year descending, then month descending.
+        List of (budget, total_spent) pairs ordered by year desc, then month
+        desc, then created_at asc — a stable carousel ordering. total_spent
+        sums every expense attached to the budget's categories; the write-time
+        rule that expenses must fall inside the budget's month makes
+        per-month filtering of the sum unnecessary.
     """
-    query = select(MonthlyBudget).where(MonthlyBudget.user_id == user_id)
+    query = (
+        select(
+            MonthlyBudget,
+            func.coalesce(func.sum(Expense.amount), Decimal("0")).label("total_spent"),
+        )
+        .outerjoin(DailyCategory, DailyCategory.monthly_budget_id == MonthlyBudget.id)
+        .outerjoin(Expense, Expense.daily_category_id == DailyCategory.id)
+        .where(MonthlyBudget.user_id == user_id)
+        .group_by(MonthlyBudget.id)
+        .order_by(
+            MonthlyBudget.year.desc(),
+            MonthlyBudget.month.desc(),
+            MonthlyBudget.created_at.asc(),
+        )
+    )
     if year is not None:
         query = query.where(MonthlyBudget.year == year)
-    query = query.order_by(MonthlyBudget.year.desc(), MonthlyBudget.month.desc())
+    if month is not None:
+        query = query.where(MonthlyBudget.month == month)
 
     result = await db.execute(query)
-    return list(result.scalars().all())
+    return [(row[0], row[1]) for row in result.all()]
 
 
 async def get_current_budget(
@@ -135,7 +225,7 @@ async def get_current_budget(
 
     Returns:
         List of MonthlyBudget instances for the current month/year with
-        daily_categories eagerly loaded. May be empty if no budgets exist.
+        daily_categories eagerly loaded (ordered by name ASC). May be empty.
     """
     today = date.today()
     result = await db.execute(
@@ -147,15 +237,18 @@ async def get_current_budget(
         )
         .options(selectinload(MonthlyBudget.daily_categories)),
     )
-    return list(result.scalars().all())
+    budgets = list(result.scalars().all())
+    for budget in budgets:
+        budget.daily_categories.sort(key=lambda category: category.name)
+    return budgets
 
 
 async def get_budget_with_categories(
     db: AsyncSession,
     budget_id: UUID,
     user_id: UUID,
-) -> MonthlyBudget:
-    """Retrieve a monthly budget with its nested categories.
+) -> tuple[MonthlyBudget, Decimal]:
+    """Retrieve a monthly budget with its nested categories and total spending.
 
     Validates ownership: the budget must belong to the requesting user.
 
@@ -165,7 +258,9 @@ async def get_budget_with_categories(
         user_id: The requesting user's UUID.
 
     Returns:
-        The MonthlyBudget instance with categories eagerly loaded.
+        A (budget, total_spent) pair. The budget's daily_categories are
+        eagerly loaded and ordered by name ASC; total_spent sums every
+        expense attached to the budget's categories.
 
     Raises:
         HTTPException: If the budget is not found or does not belong to the user (404).
@@ -186,7 +281,94 @@ async def get_budget_with_categories(
             detail="Budget not found",
         )
 
-    return budget
+    budget.daily_categories.sort(key=lambda category: category.name)
+
+    total_spent_result = await db.execute(
+        select(func.coalesce(func.sum(Expense.amount), Decimal("0")))
+        .select_from(DailyCategory)
+        .join(Expense, Expense.daily_category_id == DailyCategory.id)
+        .where(DailyCategory.monthly_budget_id == budget.id),
+    )
+    total_spent: Decimal = total_spent_result.scalar_one()
+
+    return budget, total_spent
+
+
+async def get_budget_daily_view(
+    db: AsyncSession,
+    budget_id: UUID,
+    user_id: UUID,
+    day: date,
+) -> list[CategoryWithExpenses]:
+    """Build the per-category daily panel for a budget on a given day.
+
+    Returns every category of the budget, each with its row total for the
+    requested day and the day's expenses (ordered by spent_at ascending).
+    Categories with no spending that day are included with spent=0 and an
+    empty expense list.
+
+    Args:
+        db: Async database session.
+        budget_id: The budget's UUID.
+        user_id: The requesting user's UUID.
+        day: The wall-clock day (``spent_date``) to build the panel for.
+
+    Returns:
+        List of CategoryWithExpenses rows, ordered by category name ASC.
+
+    Raises:
+        HTTPException: If the budget is not found or does not belong to the user (404).
+    """
+    budget, _total_spent = await get_budget_with_categories(db, budget_id, user_id)
+    categories = budget.daily_categories
+    if not categories:
+        return []
+
+    category_ids = [category.id for category in categories]
+
+    spent_rows = await db.execute(
+        select(
+            Expense.daily_category_id,
+            func.coalesce(func.sum(Expense.amount), Decimal("0")),
+        )
+        .where(
+            Expense.daily_category_id.in_(category_ids),
+            Expense.spent_date == day,
+        )
+        .group_by(Expense.daily_category_id),
+    )
+    spent_by_category: dict[UUID, Decimal] = dict(spent_rows.all())
+
+    expenses_result = await db.execute(
+        select(Expense)
+        .where(
+            Expense.daily_category_id.in_(category_ids),
+            Expense.spent_date == day,
+        )
+        .order_by(Expense.spent_at.asc()),
+    )
+    expenses_by_category: dict[UUID, list[Expense]] = defaultdict(list)
+    for expense in expenses_result.scalars().all():
+        expenses_by_category[expense.daily_category_id].append(expense)
+
+    return [
+        CategoryWithExpenses(
+            id=category.id,
+            monthly_budget_id=category.monthly_budget_id,
+            name=category.name,
+            daily_limit=category.daily_limit,
+            reminder_time=category.reminder_time,
+            icon=category.icon,
+            created_at=category.created_at,
+            updated_at=category.updated_at,
+            spent=spent_by_category.get(category.id, Decimal("0")),
+            expenses=[
+                ExpenseRead.model_validate(expense)
+                for expense in expenses_by_category.get(category.id, [])
+            ],
+        )
+        for category in categories
+    ]
 
 
 async def update_budget(
@@ -197,7 +379,9 @@ async def update_budget(
 ) -> MonthlyBudget:
     """Partially update an existing monthly budget.
 
-    Validates ownership before applying changes.
+    Validates ownership before applying changes. Renaming a budget (or
+    changing month/year) onto an existing duplicate raises 409 instead of
+    surfacing as an unhandled database error.
 
     Args:
         db: Async database session.
@@ -206,10 +390,11 @@ async def update_budget(
         data: Validated update fields (only non-None fields are applied).
 
     Returns:
-        The updated MonthlyBudget instance.
+        The updated and committed MonthlyBudget instance.
 
     Raises:
         HTTPException: If the budget is not found (404).
+        HTTPException: If the change collides with another named budget (409).
     """
     result = await db.execute(
         select(MonthlyBudget).where(
@@ -229,8 +414,24 @@ async def update_budget(
     for field, value in update_data.items():
         setattr(budget, field, value)
 
-    await db.flush()
-    await db.refresh(budget)
+    # Capture the post-update identity before flush(): a rollback below
+    # expires the instance, so its attributes can't be read afterwards.
+    final_name, final_month, final_year = budget.name, budget.month, budget.year
+
+    try:
+        await db.flush()
+        await db.refresh(budget)
+    except IntegrityError as exc:
+        await db.rollback()
+        if _is_duplicate_budget_conflict(exc):
+            raise _budget_conflict_exception(final_name, final_month, final_year) from exc
+
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="A database conflict occurred while updating the budget. Please try again.",
+        ) from exc
+
+    await db.commit()
     return budget
 
 
@@ -268,3 +469,4 @@ async def delete_budget(
 
     await db.delete(budget)
     await db.flush()
+    await db.commit()
