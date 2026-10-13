@@ -50,7 +50,7 @@ def _resolve_spent_date(spent_at: datetime, budget: MonthlyBudget) -> date:
 
     if (spent_date.year, spent_date.month) != (budget.year, budget.month):
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=(
                 f"spent_at date {spent_date.isoformat()} is outside budget month "
                 f"{budget.year}-{budget.month:02d}"
@@ -60,7 +60,7 @@ def _resolve_spent_date(spent_at: datetime, budget: MonthlyBudget) -> date:
     latest_allowed = (datetime.now(UTC) + FUTURE_DATE_TOLERANCE).date()
     if spent_date > latest_allowed:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"spent_at date {spent_date.isoformat()} is in the future",
         )
 
