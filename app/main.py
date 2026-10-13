@@ -15,6 +15,7 @@ from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
+from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
@@ -130,7 +131,10 @@ async def validation_exception_handler(
         status_code=422,
         content={
             "detail": "Validation error",
-            "errors": exc.errors(),
+            # jsonable_encoder: Decimal ctx values in errors() are not
+            # JSON-serializable and would otherwise crash the response,
+            # landing as a generic 500 instead of a field-level 422.
+            "errors": jsonable_encoder(exc.errors()),
         },
     )
 
@@ -152,7 +156,7 @@ async def pydantic_validation_exception_handler(
         status_code=422,
         content={
             "detail": "Validation error",
-            "errors": exc.errors(),
+            "errors": jsonable_encoder(exc.errors()),
         },
     )
 
