@@ -237,10 +237,7 @@ async def get_current_budget(
         )
         .options(selectinload(MonthlyBudget.daily_categories)),
     )
-    budgets = list(result.scalars().all())
-    for budget in budgets:
-        budget.daily_categories.sort(key=lambda category: category.name)
-    return budgets
+    return list(result.scalars().all())
 
 
 async def get_budget_with_categories(
@@ -280,8 +277,6 @@ async def get_budget_with_categories(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Budget not found",
         )
-
-    budget.daily_categories.sort(key=lambda category: category.name)
 
     total_spent_result = await db.execute(
         select(func.coalesce(func.sum(Expense.amount), Decimal("0")))

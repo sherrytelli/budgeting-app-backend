@@ -56,4 +56,7 @@ class MonthlyBudget(Base, TimestampMixin):
         "DailyCategory",
         back_populates="monthly_budget",
         cascade="all, delete-orphan",
+        # Default all loads (lazy and eager) to name-ASC so every endpoint
+        # returns a consistent category order without per-query sorting.
+        order_by="DailyCategory.name",
     )
