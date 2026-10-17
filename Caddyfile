@@ -1,0 +1,23 @@
+{
+    email {$ACME_EMAIL}
+}
+
+{$DOMAIN_NAME} {
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        -Server
+    }
+
+    # Block external access to API docs and registration endpoints (adjust path if nested under /auth)
+    @local_only {
+        path /docs /docs/* /redoc /redoc/* /openapi.json /api/v1/auth/register /health
+    }
+    respond @local_only 404
+
+    # Forward valid app traffic to FastAPI and tag it as proxied
+    reverse_proxy app:8000 {
+        header_up X-Proxied-By "caddy"
+    }
+}

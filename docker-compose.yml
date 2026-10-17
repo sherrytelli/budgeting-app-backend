@@ -33,9 +33,49 @@ services:
         condition: service_healthy
     env_file:
       - .env
+    # Caddy is the only public entrypoint, and it blocks /docs, /redoc,
+    # /openapi.json and /api/v1/auth/register. Publishing 8000 on the host
+    # would let clients bypass those rules, so bind it to loopback for local
+    # debugging only (same convention as the db service above).
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: budget_caddy
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    environment:
+      # Read by Caddy at startup from {$DOMAIN_NAME} and {$ACME_EMAIL} in the
+      # Caddyfile. Both must be non-empty: the `email` global option rejects an
+      # empty argument, so Caddy refuses to load its config without it.
+      DOMAIN_NAME: ${DOMAIN_NAME:?DOMAIN_NAME must be set in .env}
+      ACME_EMAIL: ${ACME_EMAIL:?ACME_EMAIL must be set in .env}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp" # HTTP/3 (QUIC)
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:2019/config/"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
 
 volumes:
   postgres_data:
+    driver: local
+  # Holds ACME account keys and issued certificates. Persisting it avoids
+  # re-requesting certificates (and hitting Let's Encrypt rate limits) on
+  # every container recreation.
+  caddy_data:
+    driver: local
+  # Caddy's autosaved JSON config, restored on restart.
+  caddy_config:
     driver: local
