@@ -13,8 +13,6 @@ trailing commit remains as a no-op safety net.
 from __future__ import annotations
 
 import re
-from collections import defaultdict
-from datetime import date
 from decimal import Decimal
 from typing import TYPE_CHECKING
 from uuid import UUID
@@ -28,8 +26,6 @@ from sqlalchemy.orm import selectinload
 from app.models.budget import MonthlyBudget
 from app.models.category import DailyCategory
 from app.models.expense import Expense
-from app.schemas.category import CategoryWithExpenses
-from app.schemas.expense import ExpenseRead
 
 if TYPE_CHECKING:
     from app.schemas.budget import MonthlyBudgetCreate, MonthlyBudgetUpdate
@@ -37,17 +33,24 @@ if TYPE_CHECKING:
 __all__ = [
     "create_monthly_budget",
     "delete_budget",
-    "get_budget_daily_view",
     "get_budget_with_categories",
-    "get_current_budget",
     "get_user_budgets",
     "update_budget",
 ]
 
 _MONTH_NAMES: dict[int, str] = {
-    1: "January", 2: "February", 3: "March", 4: "April",
-    5: "May", 6: "June", 7: "July", 8: "August",
-    9: "September", 10: "October", 11: "November", 12: "December",
+    1: "January",
+    2: "February",
+    3: "March",
+    4: "April",
+    5: "May",
+    6: "June",
+    7: "July",
+    8: "August",
+    9: "September",
+    10: "October",
+    11: "November",
+    12: "December",
 }
 
 _DUPLICATE_BUDGET_CONSTRAINT_FRAGMENT = "user_name_month_year"
@@ -91,10 +94,7 @@ def _constraint_name(exc: IntegrityError) -> str | None:
 def _is_duplicate_budget_conflict(exc: IntegrityError) -> bool:
     """Return True if the IntegrityError is the named-budget unique constraint."""
     constraint_name = _constraint_name(exc)
-    return (
-        constraint_name is not None
-        and _DUPLICATE_BUDGET_CONSTRAINT_FRAGMENT in constraint_name
-    )
+    return constraint_name is not None and _DUPLICATE_BUDGET_CONSTRAINT_FRAGMENT in constraint_name
 
 
 def _duplicate_budget_detail(name: str, month: int, year: int) -> str:
@@ -211,35 +211,6 @@ async def get_user_budgets(
     return [(row[0], row[1]) for row in result.all()]
 
 
-async def get_current_budget(
-    db: AsyncSession,
-    user_id: UUID,
-) -> list[MonthlyBudget]:
-    """Find all budgets for the current month and year, with categories loaded.
-
-    With named budgets, there may be multiple budgets for the same month/year.
-
-    Args:
-        db: Async database session.
-        user_id: The owning user's UUID.
-
-    Returns:
-        List of MonthlyBudget instances for the current month/year with
-        daily_categories eagerly loaded (ordered by name ASC). May be empty.
-    """
-    today = date.today()
-    result = await db.execute(
-        select(MonthlyBudget)
-        .where(
-            MonthlyBudget.user_id == user_id,
-            MonthlyBudget.month == today.month,
-            MonthlyBudget.year == today.year,
-        )
-        .options(selectinload(MonthlyBudget.daily_categories)),
-    )
-    return list(result.scalars().all())
-
-
 async def get_budget_with_categories(
     db: AsyncSession,
     budget_id: UUID,
@@ -287,83 +258,6 @@ async def get_budget_with_categories(
     total_spent: Decimal = total_spent_result.scalar_one()
 
     return budget, total_spent
-
-
-async def get_budget_daily_view(
-    db: AsyncSession,
-    budget_id: UUID,
-    user_id: UUID,
-    day: date,
-) -> list[CategoryWithExpenses]:
-    """Build the per-category daily panel for a budget on a given day.
-
-    Returns every category of the budget, each with its row total for the
-    requested day and the day's expenses (ordered by spent_at ascending).
-    Categories with no spending that day are included with spent=0 and an
-    empty expense list.
-
-    Args:
-        db: Async database session.
-        budget_id: The budget's UUID.
-        user_id: The requesting user's UUID.
-        day: The wall-clock day (``spent_date``) to build the panel for.
-
-    Returns:
-        List of CategoryWithExpenses rows, ordered by category name ASC.
-
-    Raises:
-        HTTPException: If the budget is not found or does not belong to the user (404).
-    """
-    budget, _total_spent = await get_budget_with_categories(db, budget_id, user_id)
-    categories = budget.daily_categories
-    if not categories:
-        return []
-
-    category_ids = [category.id for category in categories]
-
-    spent_rows = await db.execute(
-        select(
-            Expense.daily_category_id,
-            func.coalesce(func.sum(Expense.amount), Decimal("0")),
-        )
-        .where(
-            Expense.daily_category_id.in_(category_ids),
-            Expense.spent_date == day,
-        )
-        .group_by(Expense.daily_category_id),
-    )
-    spent_by_category: dict[UUID, Decimal] = dict(spent_rows.all())
-
-    expenses_result = await db.execute(
-        select(Expense)
-        .where(
-            Expense.daily_category_id.in_(category_ids),
-            Expense.spent_date == day,
-        )
-        .order_by(Expense.spent_at.asc()),
-    )
-    expenses_by_category: dict[UUID, list[Expense]] = defaultdict(list)
-    for expense in expenses_result.scalars().all():
-        expenses_by_category[expense.daily_category_id].append(expense)
-
-    return [
-        CategoryWithExpenses(
-            id=category.id,
-            monthly_budget_id=category.monthly_budget_id,
-            name=category.name,
-            daily_limit=category.daily_limit,
-            reminder_time=category.reminder_time,
-            icon=category.icon,
-            created_at=category.created_at,
-            updated_at=category.updated_at,
-            spent=spent_by_category.get(category.id, Decimal("0")),
-            expenses=[
-                ExpenseRead.model_validate(expense)
-                for expense in expenses_by_category.get(category.id, [])
-            ],
-        )
-        for category in categories
-    ]
 
 
 async def update_budget(

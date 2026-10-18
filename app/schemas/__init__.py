@@ -13,7 +13,6 @@ from app.schemas.budget import (
     MonthlyBudgetWithCategories,
 )
 from app.schemas.category import (
-    CategoryWithExpenses,
     DailyCategoryBase,
     DailyCategoryCreate,
     DailyCategoryRead,
@@ -42,7 +41,6 @@ __all__ = [
     "MonthlyBudgetUpdate",
     "MonthlyBudgetWithCategories",
     # Category
-    "CategoryWithExpenses",
     "DailyCategoryBase",
     "DailyCategoryCreate",
     "DailyCategoryRead",

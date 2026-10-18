@@ -1,6 +1,7 @@
 """Contract tests for the authentication endpoints.
 
-Covers case-insensitive login and the active-user requirement of /auth/me.
+Covers case-insensitive login and the active-user requirement enforced on
+protected routes.
 """
 
 from __future__ import annotations
@@ -20,13 +21,9 @@ def test_login_is_case_insensitive(client: TestClient) -> None:
     headers = login_headers(client, email.upper(), password)
     assert headers["Authorization"].startswith("Bearer ")
 
-    response = client.get(f"{API}/auth/me", headers=headers)
-    assert response.status_code == 200, response.text
-    assert response.json()["email"] == email.lower()
 
-
-def test_inactive_user_me_returns_403(client: TestClient, inactive_user: ProvisionedUser) -> None:
+def test_inactive_user_is_rejected_with_403(client: TestClient, inactive_user: ProvisionedUser) -> None:
     """A valid JWT for a deactivated account is rejected with 403."""
-    response = client.get(f"{API}/auth/me", headers=inactive_user.headers)
+    response = client.get(f"{API}/budgets", headers=inactive_user.headers)
     assert response.status_code == 403, response.text
     assert response.json()["detail"] == "User account is inactive"

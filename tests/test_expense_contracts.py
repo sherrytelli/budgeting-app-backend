@@ -1,14 +1,13 @@
 """Contract tests for the expense endpoints.
 
 Covers the 422 contracts (amount, naive timestamps, month/future date rules),
-the ``spent_date`` day-grouping proof that motivated the column, the
-zero-spend rows of the daily panel, and the ``budget_id`` list filter.
+the ``spent_date`` day-grouping proof that motivated the column, and the
+``budget_id`` list filter.
 """
 
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
-from decimal import Decimal
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
@@ -19,7 +18,6 @@ from tests.helpers import (
     create_budget,
     create_category,
     device_datetime,
-    money,
     post_expense,
     previous_month,
     shift_month,
@@ -29,9 +27,7 @@ from tests.helpers import (
 
 def test_zero_amount_returns_field_level_422(client: TestClient, active_user: ProvisionedUser) -> None:
     """amount: 0 returns a field-level 422 with JSON-serializable errors."""
-    response = post_expense(
-        client, active_user.headers, uuid4(), amount=0, spent_at=device_datetime(2026, 10, 12)
-    )
+    response = post_expense(client, active_user.headers, uuid4(), amount=0, spent_at=device_datetime(2026, 10, 12))
     assert response.status_code == 422, response.text
     body = response.json()
     assert body["detail"] == "Validation error"
@@ -96,7 +92,7 @@ def test_wall_clock_midnight_expense_stays_on_its_day(client: TestClient, active
     category = create_category(client, headers, budget["id"], name="Food")
 
     # 00:30 on the device's "today" is 19:30 UTC on the previous day; the
-    # expense must still count against today's panel.
+    # expense must still count against today's day.
     created = post_expense(
         client,
         headers,
@@ -107,55 +103,33 @@ def test_wall_clock_midnight_expense_stays_on_its_day(client: TestClient, active
     assert created.status_code == 201, created.text
     assert created.json()["spent_date"] == today.isoformat()
 
-    panel = client.get(
-        f"{API}/budgets/{budget['id']}/daily",
+    # The day-scoped list filter finds it on the wall-clock day...
+    on_day = client.get(
+        f"{API}/expenses",
         headers=headers,
-        params={"date": today.isoformat()},
+        params={
+            "budget_id": budget["id"],
+            "start_date": today.isoformat(),
+            "end_date": today.isoformat(),
+        },
     )
-    assert panel.status_code == 200, panel.text
-    food = next(row for row in panel.json() if row["id"] == category["id"])
-    assert money(food["spent"]) == Decimal("120.00")
-    assert [expense["id"] for expense in food["expenses"]] == [created.json()["id"]]
+    assert on_day.status_code == 200, on_day.text
+    assert [row["id"] for row in on_day.json()] == [created.json()["id"]]
 
-    # The UTC instant sits on the previous day; that day's panel must be empty.
+    # ...while the UTC instant's calendar day (the previous one) has none.
     if today.day > 1:
         yesterday = today - timedelta(days=1)
-        prior_panel = client.get(
-            f"{API}/budgets/{budget['id']}/daily",
+        prior_day = client.get(
+            f"{API}/expenses",
             headers=headers,
-            params={"date": yesterday.isoformat()},
+            params={
+                "budget_id": budget["id"],
+                "start_date": yesterday.isoformat(),
+                "end_date": yesterday.isoformat(),
+            },
         )
-        assert prior_panel.status_code == 200, prior_panel.text
-        prior_food = next(row for row in prior_panel.json() if row["id"] == category["id"])
-        assert money(prior_food["spent"]) == Decimal("0")
-        assert prior_food["expenses"] == []
-
-
-def test_daily_panel_includes_zero_spend_categories(client: TestClient, active_user: ProvisionedUser) -> None:
-    """The daily panel lists every category, even those without spending."""
-    year, month = previous_month()
-    headers = active_user.headers
-    budget = create_budget(client, headers, name="Regular", month=month, year=year)
-    food = create_category(client, headers, budget["id"], name="Food")
-    create_category(client, headers, budget["id"], name="Transport")
-
-    created = post_expense(
-        client, headers, food["id"], amount="80.00", spent_at=device_datetime(year, month, 15)
-    )
-    assert created.status_code == 201, created.text
-
-    panel = client.get(
-        f"{API}/budgets/{budget['id']}/daily",
-        headers=headers,
-        params={"date": f"{year}-{month:02d}-15"},
-    )
-    assert panel.status_code == 200, panel.text
-    rows = panel.json()
-    assert [row["name"] for row in rows] == ["Food", "Transport"]
-
-    transport_row = rows[1]
-    assert money(transport_row["spent"]) == Decimal("0")
-    assert transport_row["expenses"] == []
+        assert prior_day.status_code == 200, prior_day.text
+        assert prior_day.json() == []
 
 
 def test_budget_id_filter_returns_only_matching_expenses(client: TestClient, active_user: ProvisionedUser) -> None:

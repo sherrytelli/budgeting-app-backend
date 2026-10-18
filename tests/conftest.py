@@ -134,7 +134,7 @@ def inactive_user(client: TestClient) -> ProvisionedUser:
     """Registered-but-deactivated user with a directly minted JWT.
 
     ``/auth/login`` rejects inactive accounts (403), so the token is minted
-    with the same helper the app uses; ``/auth/me`` must still reject it (403).
+    with the same helper the app uses; protected routes must still reject it (403).
     """
     email = unique_email("inactive")
     password = "Contract-Test-Passw0rd!"

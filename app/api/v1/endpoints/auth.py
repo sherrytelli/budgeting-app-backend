@@ -1,8 +1,7 @@
-"""Authentication endpoints: register, login, and profile retrieval.
+"""Authentication endpoints: register and login.
 
-Provides user registration with password hashing, JWT-based login
-via OAuth2 password flow, and a protected ``/me`` endpoint to
-retrieve the current user's profile.
+Provides user registration with password hashing and JWT-based login
+via the OAuth2 password flow.
 """
 
 from __future__ import annotations
@@ -15,7 +14,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import ActiveUserDep, get_db
+from app.api.deps import get_db
 from app.core.config import get_settings
 from app.core.security import (
     create_access_token,
@@ -129,25 +128,3 @@ async def login(
     )
 
     return Token(access_token=access_token)
-
-
-@router.get(
-    "/me",
-    response_model=UserRead,
-    summary="Get current user profile",
-)
-async def get_me(
-    current_user: ActiveUserDep,
-) -> UserRead:
-    """Retrieve the authenticated user's profile.
-
-    This is a protected endpoint that requires a valid Bearer JWT token;
-    inactive accounts are rejected with 403.
-
-    Args:
-        current_user: The authenticated active user from JWT.
-
-    Returns:
-        The current user's profile.
-    """
-    return UserRead.model_validate(current_user)

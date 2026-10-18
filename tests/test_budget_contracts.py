@@ -129,11 +129,9 @@ def test_write_then_immediate_read_sees_committed_data(client: TestClient, activ
     assert created.status_code == 201, created.text
     expense_id = created.json()["id"]
 
-    fetched = client.get(f"/api/v1/expenses/{expense_id}", headers=headers)
-    assert fetched.status_code == 200, fetched.text
-    assert money(fetched.json()["amount"]) == Decimal("99.50")
-    assert fetched.json()["spent_date"] == f"{year}-{month:02d}-15"
-
     listed = client.get("/api/v1/expenses", headers=headers, params={"budget_id": budget["id"]})
     assert listed.status_code == 200, listed.text
-    assert [row["id"] for row in listed.json()] == [expense_id]
+    rows = listed.json()
+    assert [row["id"] for row in rows] == [expense_id]
+    assert money(rows[0]["amount"]) == Decimal("99.50")
+    assert rows[0]["spent_date"] == f"{year}-{month:02d}-15"

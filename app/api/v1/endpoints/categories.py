@@ -1,8 +1,7 @@
 """Daily category endpoints.
 
-Provides CRUD operations for daily spending categories within a
-monthly budget, plus a reminders endpoint to retrieve categories
-that have notification times configured.
+Provides create, update, and delete operations for daily spending
+categories within a monthly budget.
 """
 
 from __future__ import annotations
@@ -10,7 +9,7 @@ from __future__ import annotations
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -22,7 +21,6 @@ from app.schemas.category import (
     DailyCategoryRead,
     DailyCategoryUpdate,
 )
-from app.services.reminders_service import get_category_reminders
 
 router = APIRouter(tags=["categories"])
 
@@ -81,51 +79,6 @@ async def create_category(
     return DailyCategoryRead.model_validate(category)
 
 
-@router.get(
-    "/budgets/{budget_id}/categories",
-    response_model=list[DailyCategoryRead],
-    summary="List categories in a budget",
-)
-async def list_categories(
-    budget_id: UUID,
-    db: Annotated[AsyncSession, Depends(get_db)],
-    user: ActiveUserDep,
-) -> list[DailyCategoryRead]:
-    """List all daily categories within a monthly budget.
-
-    Args:
-        budget_id: The parent budget's UUID.
-        db: Database session.
-        user: The authenticated active user.
-
-    Returns:
-        List of DailyCategoryRead schemas.
-
-    Raises:
-        HTTPException: If the parent budget is not found or doesn't belong to user (404).
-    """
-    # Verify budget ownership
-    budget_result = await db.execute(
-        select(MonthlyBudget).where(
-            MonthlyBudget.id == budget_id,
-            MonthlyBudget.user_id == user.id,
-        ),
-    )
-    budget = budget_result.scalar_one_or_none()
-    if budget is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Budget not found",
-        )
-
-    result = await db.execute(
-        select(DailyCategory)
-        .where(DailyCategory.monthly_budget_id == budget_id)
-        .order_by(DailyCategory.name.asc()),
-    )
-    return [DailyCategoryRead.model_validate(c) for c in result.scalars().all()]
-
-
 @router.put(
     "/categories/{category_id}",
     response_model=DailyCategoryRead,
@@ -152,10 +105,12 @@ async def update_category(
         HTTPException: If the category's budget doesn't belong to user (404).
     """
     result = await db.execute(
-        select(DailyCategory).join(
+        select(DailyCategory)
+        .join(
             MonthlyBudget,
             DailyCategory.monthly_budget_id == MonthlyBudget.id,
-        ).where(
+        )
+        .where(
             DailyCategory.id == category_id,
             MonthlyBudget.user_id == user.id,
         ),
@@ -200,10 +155,12 @@ async def delete_category(
         HTTPException: If the category's budget doesn't belong to user (404).
     """
     result = await db.execute(
-        select(DailyCategory).join(
+        select(DailyCategory)
+        .join(
             MonthlyBudget,
             DailyCategory.monthly_budget_id == MonthlyBudget.id,
-        ).where(
+        )
+        .where(
             DailyCategory.id == category_id,
             MonthlyBudget.user_id == user.id,
         ),
@@ -218,32 +175,3 @@ async def delete_category(
     await db.delete(category)
     await db.flush()
     await db.commit()
-
-
-@router.get(
-    "/reminders",
-    response_model=list[DailyCategoryRead],
-    summary="Get categories with reminders",
-)
-async def get_reminders(
-    db: Annotated[AsyncSession, Depends(get_db)],
-    user: ActiveUserDep,
-    month: int | None = Query(default=None, ge=1, le=12),
-    year: int | None = Query(default=None, ge=2000),
-) -> list[DailyCategoryRead]:
-    """Retrieve all categories with reminder times set for a given month.
-
-    This endpoint is used by the mobile app to schedule push notifications
-    for categories where the user has enabled reminders.
-
-    Args:
-        month: Target month (1-12). Defaults to current month.
-        year: Target year. Defaults to current year.
-        db: Database session.
-        user: The authenticated active user.
-
-    Returns:
-        List of DailyCategoryRead schemas ordered by reminder_time ascending.
-    """
-    categories = await get_category_reminders(db, user.id, month=month, year=year)
-    return [DailyCategoryRead.model_validate(c) for c in categories]

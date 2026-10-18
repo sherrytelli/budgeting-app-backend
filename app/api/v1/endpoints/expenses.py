@@ -51,10 +51,7 @@ def _resolve_spent_date(spent_at: datetime, budget: MonthlyBudget) -> date:
     if (spent_date.year, spent_date.month) != (budget.year, budget.month):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=(
-                f"spent_at date {spent_date.isoformat()} is outside budget month "
-                f"{budget.year}-{budget.month:02d}"
-            ),
+            detail=(f"spent_at date {spent_date.isoformat()} is outside budget month {budget.year}-{budget.month:02d}"),
         )
 
     latest_allowed = (datetime.now(UTC) + FUTURE_DATE_TOLERANCE).date()
@@ -110,7 +107,8 @@ async def create_expense(
         .join(
             MonthlyBudget,
             DailyCategory.monthly_budget_id == MonthlyBudget.id,
-        ).where(
+        )
+        .where(
             DailyCategory.id == data.daily_category_id,
             MonthlyBudget.user_id == user.id,
         ),
@@ -231,51 +229,6 @@ async def list_expenses(
     return [ExpenseRead.model_validate(e) for e in result.scalars().all()]
 
 
-@router.get(
-    "/{expense_id}",
-    response_model=ExpenseRead,
-    summary="Get an expense",
-)
-async def get_expense(
-    expense_id: UUID,
-    db: Annotated[AsyncSession, Depends(get_db)],
-    user: ActiveUserDep,
-) -> ExpenseRead:
-    """Retrieve a specific expense record.
-
-    Validates that the expense's category belongs to a budget owned
-    by the requesting user.
-
-    Args:
-        expense_id: The expense's UUID.
-        db: Database session.
-        user: The authenticated active user.
-
-    Returns:
-        The ExpenseRead schema.
-
-    Raises:
-        HTTPException: If the expense is not found (404).
-    """
-    result = await db.execute(
-        select(Expense).join(
-            DailyCategory, Expense.daily_category_id == DailyCategory.id,
-        ).join(
-            MonthlyBudget, DailyCategory.monthly_budget_id == MonthlyBudget.id,
-        ).where(
-            Expense.id == expense_id,
-            MonthlyBudget.user_id == user.id,
-        ),
-    )
-    expense = result.scalar_one_or_none()
-    if expense is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Expense not found",
-        )
-    return ExpenseRead.model_validate(expense)
-
-
 @router.put(
     "/{expense_id}",
     response_model=ExpenseRead,
@@ -308,11 +261,16 @@ async def update_expense(
         HTTPException: If the final spent_at breaks the month/future rules (422).
     """
     result = await db.execute(
-        select(Expense).join(
-            DailyCategory, Expense.daily_category_id == DailyCategory.id,
-        ).join(
-            MonthlyBudget, DailyCategory.monthly_budget_id == MonthlyBudget.id,
-        ).where(
+        select(Expense)
+        .join(
+            DailyCategory,
+            Expense.daily_category_id == DailyCategory.id,
+        )
+        .join(
+            MonthlyBudget,
+            DailyCategory.monthly_budget_id == MonthlyBudget.id,
+        )
+        .where(
             Expense.id == expense_id,
             MonthlyBudget.user_id == user.id,
         ),
@@ -336,7 +294,8 @@ async def update_expense(
         .join(
             MonthlyBudget,
             DailyCategory.monthly_budget_id == MonthlyBudget.id,
-        ).where(
+        )
+        .where(
             DailyCategory.id == final_category_id,
             MonthlyBudget.user_id == user.id,
         ),
@@ -378,11 +337,16 @@ async def delete_expense(
         HTTPException: If the expense is not found (404).
     """
     result = await db.execute(
-        select(Expense).join(
-            DailyCategory, Expense.daily_category_id == DailyCategory.id,
-        ).join(
-            MonthlyBudget, DailyCategory.monthly_budget_id == MonthlyBudget.id,
-        ).where(
+        select(Expense)
+        .join(
+            DailyCategory,
+            Expense.daily_category_id == DailyCategory.id,
+        )
+        .join(
+            MonthlyBudget,
+            DailyCategory.monthly_budget_id == MonthlyBudget.id,
+        )
+        .where(
             Expense.id == expense_id,
             MonthlyBudget.user_id == user.id,
         ),
