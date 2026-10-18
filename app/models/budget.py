@@ -32,7 +32,10 @@ class MonthlyBudget(Base, TimestampMixin):
 
     __table_args__ = (
         UniqueConstraint(
-            "user_id", "name", "month", "year",
+            "user_id",
+            "name",
+            "month",
+            "year",
             name="uq_monthly_budget_user_name_month_year",
         ),
         CheckConstraint("month >= 1 AND month <= 12", name="ck_monthly_budget_month_range"),

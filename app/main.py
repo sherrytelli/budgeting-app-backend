@@ -115,9 +115,7 @@ async def log_requests(request: Request, call_next: Callable[[Request], Awaitabl
 
 
 @app.exception_handler(RequestValidationError)
-async def validation_exception_handler(
-    request: Request, exc: RequestValidationError
-) -> JSONResponse:
+async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
     """Handle Pydantic validation errors with a consistent JSON response."""
     logger = get_logger("validation_error")
     logger.warning(
@@ -140,9 +138,7 @@ async def validation_exception_handler(
 
 
 @app.exception_handler(ValidationError)
-async def pydantic_validation_exception_handler(
-    request: Request, exc: ValidationError
-) -> JSONResponse:
+async def pydantic_validation_exception_handler(request: Request, exc: ValidationError) -> JSONResponse:
     """Handle standalone Pydantic V2 validation errors."""
     logger = get_logger("validation_error")
     logger.warning(
